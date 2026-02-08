@@ -26,6 +26,8 @@ builder = "NIXPACKS"             # Auto-detects Python and installs deps
 
 [deploy]
 startCommand = "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
-healthcheckPath = "/api/health"  # Railway pings this to check if app is alive
 restartPolicyType = "ON_FAILURE" # Restart automatically if the app crashes
 restartPolicyMaxRetries = 3      # Max 3 restart attempts
+# NOTE: healthcheckPath is NOT set here because this toml is shared by
+# both the web service and the cron service. Set the healthcheck to
+# /api/health in the Railway dashboard for the web service only.
