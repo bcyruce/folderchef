@@ -69,4 +69,13 @@ class Settings(BaseSettings):
     )
 
 
-settings = Settings()
+_settings = Settings()
+
+# Railway provides DATABASE_URL as "postgresql://..." but SQLAlchemy's
+# async engine needs "postgresql+asyncpg://...". Auto-convert it.
+if _settings.DATABASE_URL.startswith("postgresql://"):
+    _settings.DATABASE_URL = _settings.DATABASE_URL.replace(
+        "postgresql://", "postgresql+asyncpg://", 1
+    )
+
+settings = _settings
