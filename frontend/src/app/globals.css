@@ -1,0 +1,64 @@
+/**
+ * FolderChef — Global Styles
+ * ============================
+ *
+ * This file contains global CSS styles that apply to the entire app.
+ *
+ * WHAT'S HERE:
+ *   1. Tailwind CSS imports — loads the Tailwind utility classes
+ *   2. CSS custom properties — defines our colour palette
+ *   3. Global base styles — default styles for all HTML elements
+ *
+ * HOW TAILWIND WORKS:
+ *   Instead of writing CSS like `.button { background: blue; padding: 8px; }`,
+ *   with Tailwind you write classes directly in HTML:
+ *   <button className="bg-blue-500 p-2">Click me</button>
+ *
+ *   This makes styling much faster and keeps everything in one place.
+ */
+
+/* Import Tailwind CSS */
+@import "tailwindcss";
+
+/*
+ * Custom CSS variables (colour palette)
+ * These define FolderChef's brand colours.
+ * Use them with: var(--color-primary)
+ */
+:root {
+  /* Brand colours — warm, food-inspired palette */
+  --color-primary: #e67e22;       /* Warm orange — main brand colour */
+  --color-primary-dark: #d35400;  /* Darker orange — for hover states */
+  --color-secondary: #27ae60;     /* Fresh green — for savings/deals */
+  --color-accent: #f39c12;        /* Golden — for highlights */
+
+  /* Neutral colours */
+  --color-bg: #fafafa;            /* Light background */
+  --color-surface: #ffffff;       /* Card/panel background */
+  --color-text: #2c3e50;         /* Main text colour */
+  --color-text-light: #7f8c8d;   /* Secondary/muted text */
+  --color-border: #ecf0f1;       /* Subtle borders */
+}
+
+/*
+ * Base element styles
+ * These apply default styling to HTML elements.
+ */
+
+/* Smooth scrolling when clicking anchor links */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Default body styling */
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--color-text);
+  background-color: var(--color-bg);
+}
+
+/* Make all images responsive by default */
+img {
+  max-width: 100%;
+  height: auto;
+}

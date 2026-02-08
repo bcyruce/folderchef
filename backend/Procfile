@@ -1,0 +1,8 @@
+# ============================================================
+# Procfile — Tells Railway how to start the backend server
+# ============================================================
+# Railway reads this file to know which command to run.
+# "web:" means this is a web process that serves HTTP traffic.
+# ============================================================
+
+web: uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}

@@ -1,0 +1,48 @@
+# FolderChef - .gitignore
+
+# Python / Backend
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+**/venv/
+**/.venv/
+**/env/
+
+# Node.js / Frontend
+**/node_modules/
+.next/
+out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment & Secrets
+.env
+.env.local
+.env.production
+.env.*.local
+api_key.txt
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Testing & Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+coverage/
+
+# Misc
+*.log
+*.tmp
+*.bak

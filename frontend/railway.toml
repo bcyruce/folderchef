@@ -1,0 +1,15 @@
+# ============================================================
+# Railway Deployment Configuration — Frontend
+# ============================================================
+# This file tells Railway how to build and deploy the frontend.
+# Docs: https://docs.railway.app/reference/config-as-code
+# ============================================================
+
+[build]
+builder = "NIXPACKS"                  # Auto-detects Node.js and runs npm install + next build
+
+[deploy]
+startCommand = "npm start"            # Runs 'next start' (production server)
+healthcheckPath = "/"                 # Railway pings this to check if app is alive
+restartPolicyType = "ON_FAILURE"      # Restart automatically if the app crashes
+restartPolicyMaxRetries = 3           # Max 3 restart attempts

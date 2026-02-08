@@ -1,0 +1,5 @@
+This folder holds static assets (images, icons, fonts) that are served directly.
+Add your FolderChef logo, favicon, and other assets here.
+
+Files in /public are accessible at the root URL:
+  /public/logo.png → http://localhost:3000/logo.png
