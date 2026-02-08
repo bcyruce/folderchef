@@ -57,18 +57,21 @@ async def lifespan(app: FastAPI):
         None — the app runs between the startup and shutdown phases.
     """
     # === STARTUP ===
-    # TODO: Initialize database connection pool
-    # TODO: Start the discount scraper scheduler
-    print("🚀 FolderChef backend is starting up...")
+    from app.database.connection import init_db, close_db
+
+    print("FolderChef backend is starting up...")
     print(f"   Environment: {settings.ENVIRONMENT}")
     print(f"   Debug mode:  {settings.DEBUG}")
+    print(f"   Database:    {settings.DATABASE_URL[:30]}...")
+
+    # Create database tables if they don't exist
+    await init_db()
 
     yield  # <<< The app runs here, handling requests
 
     # === SHUTDOWN ===
-    # TODO: Close database connection pool
-    # TODO: Stop the scheduler
-    print("👋 FolderChef backend is shutting down...")
+    await close_db()
+    print("FolderChef backend shut down.")
 
 
 # ------------------------------------------------------------------

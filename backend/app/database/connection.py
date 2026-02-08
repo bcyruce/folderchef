@@ -1,35 +1,17 @@
 """
-FolderChef — Database Connection
+FolderChef -- Database Connection
 ===================================
 
-This module sets up the connection to the PostgreSQL database.
+Sets up the database engine and session factory.
 
-HOW IT WORKS:
-    1. We create an "engine" — this is the connection to the database.
-    2. We create a "session factory" — this creates individual sessions
-       for each request (like opening a conversation with the database).
-    3. We provide a `get_db()` function that FastAPI uses to give each
-       API request its own database session.
+SUPPORTS BOTH:
+    - SQLite   (local development -- no server needed)
+    - PostgreSQL (production on Railway)
 
-WHY ASYNC?
-    We use async (asynchronous) database operations because:
-    - FastAPI is async, so the database should be too
-    - Async means the server can handle other requests while waiting
-      for the database to respond
-    - This makes the app faster under load
+The DATABASE_URL in your .env (or env var) controls which one is used.
 
-SETUP ON RAILWAY:
-    Railway automatically provides a DATABASE_URL environment variable
-    when you add a PostgreSQL database to your project. Our config.py
-    reads this variable, and this module uses it to connect.
-
-LOCAL DEVELOPMENT:
-    For local development, you can:
-    1. Install PostgreSQL locally
-    2. Create a database called "folderchef"
-    3. Set DATABASE_URL in your .env file
-    OR
-    4. Use the Railway CLI to connect to the cloud database
+    SQLite:     sqlite+aiosqlite:///./folderchef.db
+    PostgreSQL: postgresql+asyncpg://user:pass@host:5432/folderchef
 """
 
 from sqlalchemy.ext.asyncio import (
@@ -43,100 +25,86 @@ from app.config import settings
 
 
 # ------------------------------------------------------------------
-# Database Engine
+# Detect database type and configure engine accordingly
 # ------------------------------------------------------------------
-# The engine is the starting point for all database operations.
-# It manages the connection pool (a set of reusable connections).
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,   # If DEBUG=True, print all SQL queries (helpful for learning!)
-    pool_size=5,           # Keep 5 connections open at all times
-    max_overflow=10,       # Allow up to 10 extra connections during high traffic
-)
+is_sqlite = settings.DATABASE_URL.startswith("sqlite")
+
+engine_kwargs = {
+    "echo": settings.DEBUG,
+}
+
+# SQLite does not support pool_size / max_overflow
+if not is_sqlite:
+    engine_kwargs["pool_size"] = 5
+    engine_kwargs["max_overflow"] = 10
+
+engine = create_async_engine(settings.DATABASE_URL, **engine_kwargs)
 
 
 # ------------------------------------------------------------------
 # Session Factory
 # ------------------------------------------------------------------
-# A session is a "conversation" with the database.
-# Each API request gets its own session.
 async_session_factory = async_sessionmaker(
     engine,
     class_=AsyncSession,
-    expire_on_commit=False,  # Don't expire objects after commit
+    expire_on_commit=False,
 )
 
 
 # ------------------------------------------------------------------
-# Base Model Class
+# Base class for all ORM table models
 # ------------------------------------------------------------------
 class Base(DeclarativeBase):
     """
-    Base class for all database models (tables).
+    Base class for all database table definitions.
 
-    All database table classes should inherit from this Base class.
-    SQLAlchemy uses this to know which classes represent tables.
-
-    Example:
-        class DiscountTable(Base):
-            __tablename__ = "discounts"
-            id = Column(Integer, primary_key=True)
-            name = Column(String)
+    Every table class in database/tables.py inherits from this.
+    SQLAlchemy uses it to track which classes represent database tables.
     """
     pass
 
 
 # ------------------------------------------------------------------
-# Dependency: Get Database Session
+# FastAPI dependency -- gives each request a database session
 # ------------------------------------------------------------------
-async def get_db() -> AsyncSession:
+async def get_db():
     """
-    FastAPI dependency that provides a database session.
+    Provide a database session for a single API request.
 
-    This is used in API endpoints to get a database session:
-
+    Usage in a router:
         @router.get("/items")
         async def get_items(db: AsyncSession = Depends(get_db)):
-            # Use 'db' to query the database
             ...
 
-    The session is automatically closed when the request is done.
-
-    Yields:
-        AsyncSession: An async database session.
+    The session auto-commits on success, rolls back on error,
+    and always closes when done.
     """
     async with async_session_factory() as session:
         try:
             yield session
-            await session.commit()   # Save changes if everything went well
+            await session.commit()
         except Exception:
-            await session.rollback()  # Undo changes if something went wrong
+            await session.rollback()
             raise
         finally:
-            await session.close()     # Always close the session
+            await session.close()
 
 
 async def init_db():
     """
-    Initialise the database — create all tables.
+    Create all database tables if they don't exist yet.
 
-    Call this once during app startup to create the database tables
-    if they don't exist yet.
-
-    NOTE:
-        In production, use Alembic migrations instead of this function.
-        Alembic can safely update table schemas without losing data.
+    Called once during app startup.
     """
+    # Import tables so SQLAlchemy knows about them
+    import app.database.tables  # noqa: F401
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    print("✅ Database tables created successfully")
+    print("Database tables created")
 
 
 async def close_db():
-    """
-    Close the database engine and all connections.
-
-    Call this during app shutdown to cleanly release resources.
-    """
+    """Close the database engine and release connections."""
     await engine.dispose()
-    print("🔌 Database connections closed")
+    print("Database connections closed")

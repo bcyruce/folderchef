@@ -1,223 +1,304 @@
 """
-FolderChef — AI Service
+FolderChef -- AI Service
 =========================
 
-This module handles all communication with the OpenAI API.
+Handles all AI/LLM operations using OpenAI:
 
-WHAT DOES THIS SERVICE DO?
-    1. Takes a list of discounted supermarket items
-    2. Crafts a prompt for the AI model (GPT)
-    3. Sends the prompt to OpenAI's API
-    4. Parses the AI's response into structured Recipe objects
+    1. CLEANING -- Takes raw scraped products and returns:
+       - A common/generic English name (e.g., "AH Bio tomaat" -> "tomato")
+       - Labels from a fixed set (e.g., ["bio", "vegetable", "fresh"])
 
-THE AI PROMPT STRATEGY:
-    We use a carefully designed prompt that tells the AI to:
-    - Create recipes using ONLY the discounted ingredients
-    - Estimate costs based on discount prices
-    - Generate Dutch-friendly meals
-    - Return structured JSON that matches our Recipe model
+    2. RECIPE GENERATION -- Takes cleaned products and returns recipes
+       (to be implemented later)
 
-WHY OPENAI?
-    - GPT models are excellent at understanding food/cooking context
-    - They can generate structured JSON output reliably
-    - The API is well-documented and easy to use
+AI CLEANING FLOW:
+    Raw products come in batches (e.g. 50 at a time).
+    We send the batch to GPT with a carefully designed prompt.
+    GPT returns a JSON array with common_name and labels for each product.
+    We validate the labels against our fixed set and merge the results.
 
-COST NOTE:
-    Each recipe generation call costs real money (OpenAI charges per token).
-    We should:
-    - Cache results when possible
-    - Batch requests efficiently
-    - Use the cheapest model that gives good results (e.g., gpt-4o-mini)
+COST MANAGEMENT:
+    - We use gpt-4o-mini (cheapest model with good JSON output)
+    - We batch products to minimize API calls
+    - Each cleaning call costs roughly $0.01-0.05 depending on batch size
 """
 
+import json
 from typing import Optional
 
 from openai import AsyncOpenAI
 
 from app.config import settings
-from app.models.discount import DiscountItem
+from app.models.discount import RawDiscount, CleanedProduct, VALID_LABELS
 from app.models.recipe import Recipe
 
 
 class AIService:
     """
-    Service for AI-powered recipe generation using OpenAI.
-
-    This service is responsible for turning a list of discounted
-    supermarket items into delicious, budget-friendly recipes.
+    AI service for product cleaning and recipe generation.
 
     Attributes:
-        client (AsyncOpenAI): The OpenAI API client.
-        model (str): Which GPT model to use (default: gpt-4o-mini).
-
-    Usage:
-        ai = AIService()
-        recipes = await ai.generate_recipes(
-            discount_items=[...],
-            num_recipes=5,
-        )
+        client: OpenAI async API client.
+        model: Which GPT model to use.
     """
 
     def __init__(self, model: str = "gpt-4o-mini"):
-        """
-        Initialise the AI service.
-
-        Args:
-            model: The OpenAI model to use. Default is "gpt-4o-mini"
-                   which is fast and affordable. Use "gpt-4o" for
-                   higher quality (but more expensive) results.
-        """
         self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         self.model = model
 
-    def _build_system_prompt(self) -> str:
-        """
-        Build the system prompt that tells the AI how to behave.
+    # ==============================================================
+    # PRODUCT CLEANING
+    # ==============================================================
 
-        The system prompt sets the AI's "personality" and rules.
-        It tells the AI it's a Dutch meal planner that creates
-        budget-friendly recipes from discounted ingredients.
-
-        Returns:
-            str: The system prompt string.
-        """
-        return """You are FolderChef, an expert Dutch meal planning assistant.
-Your job is to create delicious, budget-friendly recipes using ingredients
-that are currently on sale at Dutch supermarkets (Albert Heijn and Jumbo).
-
-RULES:
-1. Prioritise discounted ingredients — they should make up the core of each recipe.
-2. You may include a few common pantry staples (oil, salt, pepper, etc.) that aren't on sale.
-3. Estimate the total cost based on the discount prices provided.
-4. Create recipes suitable for the Dutch market (consider local tastes and ingredients).
-5. Include a mix of meal types: quick dinners, meal prep, soups, etc.
-6. Always respond in valid JSON format matching the schema provided.
-7. Keep instructions clear and beginner-friendly.
-8. Estimate realistic preparation and cooking times."""
-
-    def _build_recipe_prompt(
+    async def clean_products(
         self,
-        discount_items: list[DiscountItem],
-        num_recipes: int = 5,
-        dietary_preferences: Optional[list[str]] = None,
-        max_budget: Optional[float] = None,
-    ) -> str:
+        raw_products: list[RawDiscount],
+        batch_size: int = 80,
+    ) -> list[CleanedProduct]:
         """
-        Build the user prompt with discount data and preferences.
+        Clean a list of raw scraped products using AI.
 
-        This creates the specific request that includes the current
-        discount items and the user's preferences.
+        For each product, the AI assigns:
+            - common_name: A generic English name (lowercase)
+            - labels: A list from the fixed VALID_LABELS set
+
+        Products are processed in batches to stay within token limits.
+        With batch_size=80 and ~300 bonus products, that's only ~4 API calls.
 
         Args:
-            discount_items: List of currently discounted products.
-            num_recipes: How many recipes to generate.
-            dietary_preferences: Optional dietary restrictions.
-            max_budget: Optional maximum cost per meal in EUR.
+            raw_products: List of raw scraped discount items.
+            batch_size: How many products to send per API call.
+                        80 is a good balance of speed vs reliability.
 
         Returns:
-            str: The formatted user prompt string.
+            list[CleanedProduct]: Products with AI-assigned names and labels.
         """
-        # Format the discount items into a readable list
-        items_text = "\n".join(
-            f"- {item.name} ({item.supermarket.value}): "
-            f"{item.discount_label}"
-            f"{f' — €{item.discount_price:.2f}' if item.discount_price else ''}"
-            for item in discount_items
+        if not raw_products:
+            return []
+
+        if not settings.OPENAI_API_KEY:
+            print("WARNING: No OPENAI_API_KEY set. Skipping AI cleaning.")
+            return self._fallback_clean(raw_products)
+
+        all_cleaned: list[CleanedProduct] = []
+
+        # Process in batches
+        for i in range(0, len(raw_products), batch_size):
+            batch = raw_products[i : i + batch_size]
+            batch_num = (i // batch_size) + 1
+            total_batches = (len(raw_products) + batch_size - 1) // batch_size
+            print(f"  AI cleaning batch {batch_num}/{total_batches} ({len(batch)} products)...")
+
+            try:
+                cleaned_batch = await self._clean_batch(batch)
+                all_cleaned.extend(cleaned_batch)
+            except Exception as e:
+                print(f"  ERROR in batch {batch_num}: {e}")
+                # Fallback: use raw names without AI cleaning
+                all_cleaned.extend(self._fallback_clean(batch))
+
+        return all_cleaned
+
+    async def _clean_batch(self, batch: list[RawDiscount]) -> list[CleanedProduct]:
+        """
+        Send a batch of products to GPT for cleaning.
+
+        Args:
+            batch: A list of raw products (max ~40 at a time).
+
+        Returns:
+            list[CleanedProduct]: Cleaned products with common names + labels.
+        """
+        # Build the product list for the prompt
+        product_lines = []
+        for idx, p in enumerate(batch):
+            product_lines.append(f'{idx}: "{p.name}"')
+
+        products_text = "\n".join(product_lines)
+
+        labels_text = ", ".join(VALID_LABELS)
+
+        system_prompt = f"""You are a food product classifier for a Dutch grocery app.
+
+Your job:
+1. For each Dutch supermarket product name, provide a COMMON English name (lowercase, generic).
+   - "AH Biologische cherry tomaten" -> "cherry tomato"
+   - "Jumbo Kipfilet" -> "chicken breast"
+   - "AH Goudse kaas jong belegen" -> "gouda cheese young mature"
+   - "Coca-Cola Zero" -> "coca-cola zero"  (keep brand for branded items)
+   - "AH Verse jus d'orange" -> "orange juice"
+
+2. Assign one or more LABELS from ONLY this fixed list:
+   [{labels_text}]
+
+   Rules for labels:
+   - "bio" = organic/biologisch products
+   - "fresh" = products sold in the fresh/refrigerated section
+   - "meat" = any meat product
+   - "fish" = any fish or seafood
+   - "vegetable" = vegetables
+   - "fruit" = fruits
+   - "dairy" = milk, yogurt, butter, cream
+   - "eggs" = egg products
+   - "cheese" = any cheese
+   - "ready-to-eat" = pre-made meals, salads, sandwiches
+   - "bakery" = bread, pastries, cakes
+   - "pantry" = dry goods, canned food, pasta, rice, sauces
+   - "cooking-adds" = herbs, spices, oils, vinegar, condiments
+   - "frozen" = frozen food
+   - "snack" = chips, crackers, savory snacks
+   - "candy" = chocolate, sweets, cookies
+   - "beverage" = drinks (soda, juice, water, coffee, tea)
+   - "salad" = pre-made salads or salad mixes
+   - "asia" = Asian food products (noodles, soy sauce, wok, sushi)
+
+   A product can have MULTIPLE labels. For example:
+   - "AH Biologische tomaten" -> ["bio", "vegetable", "fresh"]
+   - "AH Verse kipfilet" -> ["meat", "fresh"]
+
+RESPOND WITH ONLY a valid JSON array. Each element has:
+  {{"idx": <number>, "common_name": "<string>", "labels": ["<label>", ...]}}
+
+No explanation, no markdown, just the JSON array."""
+
+        user_prompt = f"Classify these products:\n{products_text}"
+
+        # Call OpenAI
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.1,  # Low temperature = more consistent output
+            response_format={"type": "json_object"},
         )
 
-        prompt = f"""Here are the current supermarket discounts in the Netherlands:
+        # Parse the AI response
+        raw_content = response.choices[0].message.content or "{}"
+        ai_results = self._parse_ai_response(raw_content, len(batch))
 
-{items_text}
+        # Merge AI results with raw product data
+        cleaned: list[CleanedProduct] = []
+        for idx, raw in enumerate(batch):
+            ai_data = ai_results.get(idx, {})
+            common_name = ai_data.get("common_name", raw.name.lower())
+            raw_labels = ai_data.get("labels", [])
 
-Please generate {num_recipes} recipes using these discounted ingredients."""
+            # Validate labels -- only keep ones in our fixed set
+            valid = [lbl for lbl in raw_labels if lbl in VALID_LABELS]
 
-        if dietary_preferences:
-            prefs = ", ".join(dietary_preferences)
-            prompt += f"\n\nDietary preferences: {prefs}"
+            cleaned.append(CleanedProduct(
+                raw_name=raw.name,
+                common_name=common_name,
+                labels=valid,
+                supermarket=raw.supermarket,
+                original_price=raw.original_price,
+                discount_price_per_unit=raw.discount_price_per_unit,
+                discount_info=raw.discount_info,
+                weight=raw.weight,
+                price_per_kg=raw.price_per_kg,
+                start_date=raw.start_date,
+                end_date=raw.end_date,
+                image_url=raw.image_url,
+            ))
 
-        if max_budget:
-            prompt += f"\n\nMaximum budget per meal: €{max_budget:.2f}"
+        return cleaned
 
-        prompt += """
+    def _parse_ai_response(self, content: str, expected_count: int) -> dict:
+        """
+        Parse the JSON response from GPT.
 
-Respond with a JSON array of recipe objects. Each recipe should have:
-- title (string)
-- description (string, 1-2 sentences)
-- servings (integer)
-- prep_time_minutes (integer)
-- cook_time_minutes (integer)
-- estimated_cost (float, in EUR)
-- ingredients (array of {name, quantity, is_discounted, estimated_price})
-- instructions (array of strings, step-by-step)
-- tags (array of strings like "vegetarian", "quick", "budget")
-- supermarkets (array of supermarket names used)"""
+        GPT sometimes wraps the array in an object like {"products": [...]},
+        so we handle both formats.
 
-        return prompt
+        Args:
+            content: The raw JSON string from GPT.
+            expected_count: How many products we expect.
+
+        Returns:
+            dict: Mapping of index -> {"common_name": str, "labels": list}
+        """
+        try:
+            data = json.loads(content)
+
+            # Handle wrapped format: {"products": [...]} or {"items": [...]}
+            if isinstance(data, dict):
+                # Find the array inside the dict
+                for key, value in data.items():
+                    if isinstance(value, list):
+                        data = value
+                        break
+                else:
+                    # Single item dict -- treat as one result
+                    data = [data]
+
+            if not isinstance(data, list):
+                print(f"  WARNING: AI returned unexpected format: {type(data)}")
+                return {}
+
+            # Build index -> result mapping
+            result = {}
+            for item in data:
+                if isinstance(item, dict):
+                    idx = item.get("idx", item.get("index", len(result)))
+                    result[idx] = {
+                        "common_name": item.get("common_name", ""),
+                        "labels": item.get("labels", []),
+                    }
+
+            return result
+
+        except json.JSONDecodeError as e:
+            print(f"  WARNING: Could not parse AI response as JSON: {e}")
+            return {}
+
+    def _fallback_clean(self, products: list[RawDiscount]) -> list[CleanedProduct]:
+        """
+        Fallback cleaning when AI is not available.
+
+        Uses the raw product name as-is (no AI processing).
+        Assigns no labels.
+
+        Args:
+            products: Raw products to convert.
+
+        Returns:
+            list[CleanedProduct]: Products with raw names and empty labels.
+        """
+        return [
+            CleanedProduct(
+                raw_name=p.name,
+                common_name=p.name.lower(),
+                labels=[],
+                supermarket=p.supermarket,
+                original_price=p.original_price,
+                discount_price_per_unit=p.discount_price_per_unit,
+                discount_info=p.discount_info,
+                weight=p.weight,
+                price_per_kg=p.price_per_kg,
+                start_date=p.start_date,
+                end_date=p.end_date,
+                image_url=p.image_url,
+            )
+            for p in products
+        ]
+
+    # ==============================================================
+    # RECIPE GENERATION (to be implemented)
+    # ==============================================================
 
     async def generate_recipes(
         self,
-        discount_items: list[DiscountItem],
+        discount_items: list[CleanedProduct],
         num_recipes: int = 5,
         dietary_preferences: Optional[list[str]] = None,
         max_budget: Optional[float] = None,
     ) -> list[Recipe]:
         """
-        Generate recipes using AI based on discounted ingredients.
+        Generate recipes using AI based on cleaned discount products.
 
-        This is the main method of the AI service. It sends the
-        discount data to OpenAI and returns structured recipes.
-
-        Args:
-            discount_items: Currently discounted supermarket items.
-            num_recipes: Number of recipes to generate (1-20).
-            dietary_preferences: User's dietary restrictions/preferences.
-            max_budget: Maximum budget per meal in EUR.
-
-        Returns:
-            list[Recipe]: Generated recipe objects.
-
-        Raises:
-            openai.APIError: If the OpenAI API call fails.
-            ValueError: If the AI response can't be parsed into recipes.
-
-        Example:
-            recipes = await ai_service.generate_recipes(
-                discount_items=discounts,
-                num_recipes=5,
-                dietary_preferences=["vegetarian"],
-                max_budget=10.00,
-            )
+        TODO: Implement in next iteration.
         """
-        # TODO: Implement the actual API call and response parsing
-        # Steps:
-        # 1. Build the prompt using _build_recipe_prompt()
-        # 2. Call self.client.chat.completions.create()
-        # 3. Parse the JSON response
-        # 4. Validate and convert to Recipe objects
-        # 5. Return the recipes
-
-        print(f"🤖 Generating {num_recipes} recipes from {len(discount_items)} discounted items...")
-
-        # Placeholder — return empty list until implemented
+        print(f"Recipe generation: {len(discount_items)} items, {num_recipes} recipes requested")
         return []
-
-    async def categorise_items(
-        self,
-        items: list[DiscountItem],
-    ) -> list[DiscountItem]:
-        """
-        Use AI to categorise discount items into food categories.
-
-        The scraped discount data often lacks proper categorisation.
-        This method uses AI to assign categories like "dairy", "meat",
-        "vegetables", etc. to each item.
-
-        Args:
-            items: List of discount items without categories.
-
-        Returns:
-            list[DiscountItem]: The same items with categories filled in.
-        """
-        # TODO: Implement AI-based categorisation
-        print(f"🏷️  Categorising {len(items)} items with AI...")
-        return items

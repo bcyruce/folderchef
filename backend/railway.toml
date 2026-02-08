@@ -3,6 +3,22 @@
 # ============================================================
 # This file tells Railway how to build and deploy the backend.
 # Docs: https://docs.railway.app/reference/config-as-code
+#
+# TWO WAYS TO RUN THE SCRAPER:
+#
+#   1. CRON (automatic):
+#      Create a second Railway service in the same project,
+#      point it at this same repo/backend folder, and set its
+#      start command to:
+#        python -m app.cli scrape
+#      Then add a cron schedule in the Railway dashboard:
+#        0 6 * * 1    (every Monday at 06:00 UTC)
+#
+#   2. MANUAL (one-off):
+#      In the Railway dashboard, open a shell on any service
+#      and run:
+#        python -m app.cli scrape --week 6 --year 2026
+#
 # ============================================================
 
 [build]

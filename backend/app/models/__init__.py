@@ -1,32 +1,20 @@
 """
-FolderChef — Data Models Package
+FolderChef -- Data Models Package
 ==================================
 
-This package contains all Pydantic models used throughout the application.
+Pydantic models that define the shape of data throughout the app.
 
-WHAT ARE MODELS?
-    Models define the "shape" of our data. They describe:
-    - What fields a piece of data has (name, price, category, etc.)
-    - What type each field is (string, number, list, etc.)
-    - Which fields are required vs optional
-
-    Think of them as blueprints or templates for our data.
-
-WHY USE MODELS?
-    1. Validation — FastAPI automatically validates incoming data against models
-    2. Documentation — Models appear in the auto-generated API docs
-    3. Type Safety — Your editor can auto-complete model fields
-    4. Serialization — Models easily convert to/from JSON
-
-MODULES:
-    - discount.py → Models for supermarket discount items
-    - recipe.py   → Models for AI-generated recipes
+Modules:
+    - discount.py -- RawDiscount, CleanedProduct, DiscountResponse
+    - recipe.py   -- Recipe, RecipeIngredient, RecipeGenerateRequest/Response
 """
 
 from app.models.discount import (
-    DiscountItem,
+    RawDiscount,
+    CleanedProduct,
     DiscountResponse,
     SupermarketEnum,
+    VALID_LABELS,
 )
 from app.models.recipe import (
     Recipe,
@@ -35,11 +23,12 @@ from app.models.recipe import (
     RecipeGenerateResponse,
 )
 
-# This lets other files do: from app.models import DiscountItem, Recipe
 __all__ = [
-    "DiscountItem",
+    "RawDiscount",
+    "CleanedProduct",
     "DiscountResponse",
     "SupermarketEnum",
+    "VALID_LABELS",
     "Recipe",
     "RecipeIngredient",
     "RecipeGenerateRequest",
