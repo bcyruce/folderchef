@@ -2,9 +2,6 @@
 FolderChef — Main Application Entry Point
 ===========================================
 
-This is the heart of the FolderChef backend. When you run the server,
-this is the file that starts everything up.
-
 WHAT THIS FILE DOES:
     1. Creates the FastAPI application
     2. Configures CORS (so the frontend can talk to the backend)

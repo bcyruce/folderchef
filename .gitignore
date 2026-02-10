@@ -42,6 +42,9 @@ htmlcov/
 .pytest_cache/
 coverage/
 
+# Database (local SQLite files -- Railway uses PostgreSQL)
+*.db
+
 # Misc
 *.log
 *.tmp

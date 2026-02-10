@@ -1,4 +1,4 @@
-# 🍳 FolderChef — AI-Powered Reverse Meal Planner
+#  FolderChef — AI-Powered Reverse Meal Planner
 
 > **Save money on groceries by cooking with what's on sale.**
 
@@ -9,13 +9,13 @@ budget-friendly recipes** based on those deals.
 
 ---
 
-## 🎯 Problem We Solve
+##  Problem We Solve
 
 - Food inflation makes groceries expensive
 - People waste food because they buy ingredients they don't use
 - Traditional meal planners ignore what's actually on sale
 
-## 💡 How It Works
+## How It Works
 
 1. **Scrape** — We fetch the latest weekly discounts from Albert Heijn and Jumbo
 2. **Clean** — AI processes and categorises the raw discount data
@@ -24,7 +24,7 @@ budget-friendly recipes** based on those deals.
 
 ---
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```
 folderchef/
@@ -56,7 +56,7 @@ folderchef/
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -76,8 +76,10 @@ cd folderchef
 ```bash
 cd backend
 python -m venv venv              # Create virtual environment
-venv\Scripts\activate            # Activate it (Windows)
-# source venv/bin/activate       # Activate it (Mac/Linux)
+# Activate it (Windows):
+#   PowerShell: .\venv\Scripts\Activate.ps1   (if blocked, run: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser)
+#   CMD:        venv\Scripts\activate.bat
+#   Mac/Linux:  source venv/bin/activate
 pip install -r requirements.txt  # Install dependencies
 cp .env.example .env             # Create your env file
 # Edit .env and add your API keys
@@ -100,7 +102,7 @@ The web app will be live at **http://localhost:3000**
 
 ---
 
-## 🚂 Deploying to Railway
+## Deploying to Railway
 
 This project is configured for [Railway](https://railway.app/) deployment.
 Each folder (`backend/` and `frontend/`) can be deployed as a separate Railway service.
@@ -115,14 +117,14 @@ See `backend/railway.toml` and `frontend/railway.toml` for deployment configs.
 
 ---
 
-## 📱 Mobile (Coming Soon)
+## Mobile (Coming Soon)
 
 The backend API is designed to be **platform-agnostic** — the same API that powers
 the web app will also power future iOS and Android apps.
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Layer      | Technology           | Why                                      |
 |------------|----------------------|------------------------------------------|
@@ -135,6 +137,6 @@ the web app will also power future iOS and Android apps.
 
 ---
 
-## 📄 License
+## License
 
 MIT License — see [LICENSE](LICENSE) for details.
