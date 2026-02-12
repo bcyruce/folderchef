@@ -65,10 +65,13 @@ export default function RecipeSection() {
    */
   async function handleGenerate() {
     if (!canGenerate) return;
-    try {
-      setLoading(true);
-      setError(null);
+    setLoading(true);
+    setError(null);
 
+    const minLoadingMs = 600; // So user always sees "Generating..." feedback
+    const start = Date.now();
+
+    try {
       const response = await apiClient.generateRecipes({
         supermarkets: ["albert_heijn", "jumbo"],
         num_recipes: 6,
@@ -78,13 +81,15 @@ export default function RecipeSection() {
         label_filter: selectedLabels,
       });
 
-      setRecipes(response.recipes);
+      setRecipes(response.recipes ?? []);
       setGenerated(true);
     } catch (err) {
       console.error("Failed to generate recipes:", err);
       setError("Could not generate recipes. Please try again.");
     } finally {
-      setLoading(false);
+      const elapsed = Date.now() - start;
+      const remaining = Math.max(0, minLoadingMs - elapsed);
+      setTimeout(() => setLoading(false), remaining);
     }
   }
 
@@ -135,14 +140,20 @@ export default function RecipeSection() {
       {/* Generate Button */}
       <div className="mb-8 text-center">
         <button
+          type="button"
           onClick={handleGenerate}
           disabled={!canGenerate}
-          className="rounded-full bg-orange-500 px-8 py-3 text-lg font-semibold text-white shadow-lg transition hover:bg-orange-600 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50"
+          aria-busy={loading}
+          className={`rounded-full px-8 py-3 text-lg font-semibold transition disabled:cursor-not-allowed ${
+            loading
+              ? "bg-gray-400 text-white shadow-none"
+              : "bg-orange-500 text-white shadow-lg hover:bg-orange-600 hover:shadow-xl disabled:opacity-50"
+          }`}
         >
           {loading ? (
-            <span className="flex items-center gap-2">
-              <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-              AI is cooking...
+            <span className="flex items-center justify-center gap-2">
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              Generating...
             </span>
           ) : generated ? (
             "Generate More Recipes"
@@ -167,9 +178,14 @@ export default function RecipeSection() {
           ))}
         </div>
       ) : generated ? (
-        <p className="py-8 text-center text-gray-400">
-          No recipes generated yet. Try again with different preferences.
-        </p>
+        <div className="py-8 text-center">
+          <p className="text-gray-400">
+            No recipes generated yet. Try again with different preferences.
+          </p>
+          <p className="mt-2 text-sm text-gray-500">
+            If the backend has not implemented recipe generation yet, you will see an empty list here even when the request succeeds.
+          </p>
+        </div>
       ) : (
         <p className="py-8 text-center text-gray-400">
           Click the button above to generate budget-friendly recipes
