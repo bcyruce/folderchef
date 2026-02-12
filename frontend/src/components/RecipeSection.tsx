@@ -25,6 +25,7 @@ import { apiClient } from "@/lib/api";
 import type { Recipe } from "@/types/recipe";
 import { VALID_LABELS } from "@/types/recipe";
 import RecipeCard from "@/components/RecipeCard";
+import RecipeDetailModal from "@/components/RecipeDetailModal";
 
 const MAX_LABELS = 5;
 
@@ -44,6 +45,7 @@ export default function RecipeSection() {
   const [generated, setGenerated] = useState<boolean>(false);
   const [userPrompt, setUserPrompt] = useState<string>("");
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
 
   function toggleLabel(label: string) {
     setSelectedLabels((prev) => {
@@ -74,7 +76,7 @@ export default function RecipeSection() {
     try {
       const response = await apiClient.generateRecipes({
         supermarkets: ["albert_heijn", "jumbo"],
-        num_recipes: 6,
+        num_recipes: 3,
         dietary_preferences: [],
         max_budget_per_meal: undefined,
         user_prompt: userPrompt.trim() || undefined,
@@ -174,7 +176,11 @@ export default function RecipeSection() {
       {recipes.length > 0 ? (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {recipes.map((recipe, index) => (
-            <RecipeCard key={recipe.id || index} recipe={recipe} />
+            <RecipeCard
+              key={recipe.id || index}
+              recipe={recipe}
+              onClick={() => setSelectedRecipe(recipe)}
+            />
           ))}
         </div>
       ) : generated ? (
@@ -189,6 +195,13 @@ export default function RecipeSection() {
           Click the button above to generate budget-friendly recipes
           from this week&apos;s supermarket deals!
         </p>
+      )}
+
+      {selectedRecipe && (
+        <RecipeDetailModal
+          recipe={selectedRecipe}
+          onClose={() => setSelectedRecipe(null)}
+        />
       )}
     </div>
   );

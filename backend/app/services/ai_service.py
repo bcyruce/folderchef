@@ -376,7 +376,13 @@ For each recipe provide:
 - cook_time_minutes: realistic cook time
 - estimated_cost: total cost in EUR (use the discount prices)
 - savings_percentage: estimated % saved vs buying at full price (0-50 range)
-- ingredients: list of objects with "name", "quantity", "is_discounted" (true if from the list), "estimated_price" (in EUR or null)
+- ingredients: list of objects with:
+  - "name": ingredient name
+  - "quantity": amount needed (e.g. "200g", "2 stuks")
+  - "is_discounted": true if from the discount list above
+  - "estimated_price": cost in EUR for this quantity
+  - "original_price": regular price per unit in EUR (only if is_discounted; use the "was €X" from the list)
+  - "discount_price": sale price per unit in EUR (only if is_discounted; use the current €X from the list)
 - instructions: list of step-by-step strings
 - tags: relevant tags like "vegetarian", "quick", "budget", "healthy", "dutch", etc.
 - supermarkets: which supermarkets have the ingredients (from the discount list)
@@ -455,6 +461,8 @@ No explanation, no markdown, just JSON."""
                             quantity=ing.get("quantity", ""),
                             is_discounted=ing.get("is_discounted", False),
                             estimated_price=ing.get("estimated_price"),
+                            original_price=ing.get("original_price"),
+                            discount_price=ing.get("discount_price"),
                             discount_item_id=None,
                         ))
 

@@ -60,6 +60,12 @@ class RecipeIngredient(BaseModel):
         estimated_price (float | None):
             Estimated cost for the needed quantity (in EUR).
 
+        original_price (float | None):
+            Regular price per unit in EUR if on sale. Used to show savings.
+
+        discount_price (float | None):
+            Sale price per unit in EUR if on sale.
+
         discount_item_id (str | None):
             ID of the matching DiscountItem, if this ingredient is on sale.
             This lets the frontend link directly to the deal.
@@ -82,6 +88,16 @@ class RecipeIngredient(BaseModel):
     estimated_price: Optional[float] = Field(
         default=None,
         description="Estimated cost in EUR for this quantity",
+        ge=0,
+    )
+    original_price: Optional[float] = Field(
+        default=None,
+        description="Regular price per unit in EUR (if on sale)",
+        ge=0,
+    )
+    discount_price: Optional[float] = Field(
+        default=None,
+        description="Sale price per unit in EUR (if on sale)",
         ge=0,
     )
     discount_item_id: Optional[str] = Field(

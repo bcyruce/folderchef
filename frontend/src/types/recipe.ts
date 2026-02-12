@@ -44,6 +44,8 @@ export const VALID_LABELS: readonly string[] = [
  * @property quantity - Amount needed (e.g., "200g", "2 stuks").
  * @property is_discounted - Whether this ingredient is currently on sale.
  * @property estimated_price - Estimated cost in EUR for this quantity.
+ * @property original_price - Regular price per unit in EUR (if on sale).
+ * @property discount_price - Sale price per unit in EUR (if on sale).
  * @property discount_item_id - ID of matching discount item (if on sale).
  */
 export interface RecipeIngredient {
@@ -51,6 +53,8 @@ export interface RecipeIngredient {
   quantity: string;
   is_discounted: boolean;
   estimated_price: number | null;
+  original_price?: number | null;
+  discount_price?: number | null;
   discount_item_id: string | null;
 }
 

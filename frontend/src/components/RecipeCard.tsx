@@ -2,45 +2,18 @@
  * FolderChef — Recipe Card Component
  * =====================================
  *
- * This component renders a single AI-generated recipe as a card.
- *
- * WHAT IT SHOWS:
- *   - Recipe title
- *   - Description
- *   - Estimated cost with savings badge
- *   - Prep + cook time
- *   - Number of servings
- *   - Tags (vegetarian, quick, etc.)
- *   - Discounted ingredient count
- *
- * DESIGN:
- *   Clean card layout with:
- *   - Warm colour palette matching the FolderChef brand
- *   - Clear cost/savings display
- *   - Quick-glance meta information (time, servings)
+ * Interactive card that shows recipe preview. Click to open full details
+ * (instructions, ingredients with sale info, original/discounted prices).
  */
 
 import type { Recipe } from "@/types/recipe";
 
-/**
- * Props for the RecipeCard component.
- *
- * @property recipe - The recipe data to display.
- */
 interface RecipeCardProps {
   recipe: Recipe;
+  onClick?: () => void;
 }
 
-/**
- * RecipeCard component.
- *
- * Renders a single recipe as a visual card with key information.
- * Designed to be displayed in a grid layout.
- *
- * @param props - Component props containing the recipe data.
- * @returns The recipe card JSX element.
- */
-export default function RecipeCard({ recipe }: RecipeCardProps) {
+export default function RecipeCard({ recipe, onClick }: RecipeCardProps) {
   /** Count how many ingredients are currently on sale. */
   const discountedCount = recipe.ingredients.filter(
     (i) => i.is_discounted
@@ -50,7 +23,11 @@ export default function RecipeCard({ recipe }: RecipeCardProps) {
   const totalTime = recipe.prep_time_minutes + recipe.cook_time_minutes;
 
   return (
-    <div className="flex flex-col rounded-xl bg-white p-5 shadow-md transition hover:shadow-lg">
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full flex-col rounded-xl bg-white p-5 text-left shadow-md transition hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
+    >
       {/* Title */}
       <h3 className="mb-2 text-xl font-bold text-gray-800">{recipe.title}</h3>
 
@@ -108,6 +85,7 @@ export default function RecipeCard({ recipe }: RecipeCardProps) {
           </span>
         )}
       </div>
-    </div>
+      <p className="mt-3 text-xs text-gray-400">Click for full recipe & instructions</p>
+    </button>
   );
 }
