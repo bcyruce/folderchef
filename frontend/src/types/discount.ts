@@ -23,30 +23,23 @@
 /**
  * A single discounted product from a supermarket.
  *
- * This matches the DiscountItem model on the backend.
- *
- * @property id - Unique identifier (may be null for new items).
- * @property name - Product name (e.g., "Goudse kaas jong belegen").
- * @property supermarket - Which supermarket ("albert_heijn" or "jumbo").
- * @property original_price - Regular price in EUR (before discount).
- * @property discount_price - Sale price in EUR.
- * @property discount_label - Discount description (e.g., "1+1 gratis").
- * @property category - AI-assigned food category (e.g., "dairy").
- * @property image_url - URL to the product image.
- * @property valid_from - Start date of the discount period (ISO string).
- * @property valid_until - End date of the discount period (ISO string).
+ * Matches backend CleanedProduct.
  */
 export interface DiscountItem {
-  id: string | null;
-  name: string;
+  id: number | null;
+  raw_name: string;
+  common_name: string;
+  labels: string[];
   supermarket: "albert_heijn" | "jumbo";
   original_price: number | null;
-  discount_price: number | null;
-  discount_label: string;
-  category: string | null;
+  discount_price_per_unit: number | null;
+  discount_info: string;
+  weight: string | null;
+  price_per_kg: number | null;
+  start_date: string | null;
+  end_date: string | null;
   image_url: string | null;
-  valid_from: string | null;
-  valid_until: string | null;
+  scraped_at: string | null;
 }
 
 /**

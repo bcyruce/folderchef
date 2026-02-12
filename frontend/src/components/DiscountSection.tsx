@@ -2,49 +2,53 @@
  * FolderChef — Discount Section Component
  * ==========================================
  *
- * This component displays the current weekly supermarket discounts.
- *
- * WHAT IT DOES:
- *   - Fetches discount data from the backend API
- *   - Displays discount items in a responsive grid
- *   - Shows loading and error states
- *   - Lets users filter by supermarket (Albert Heijn / Jumbo)
- *
- * THIS IS A CLIENT COMPONENT:
- *   The "use client" directive below tells Next.js this component
- *   runs in the browser (not on the server). We need this because:
- *   - It uses React hooks (useState, useEffect)
- *   - It handles user interactions (clicks, filters)
- *   - It fetches data dynamically after the page loads
+ * Weekly supermarket discounts with:
+ * - Valid date range when Albert Heijn or Jumbo is selected
+ * - Paginated product grid (15 per page)
+ * - Product cards: image, name, original price, deal price, discount type
  */
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { apiClient } from "@/lib/api";
-import type { DiscountResponse } from "@/types/discount";
+import type { DiscountResponse, DiscountItem } from "@/types/discount";
 import DiscountCard from "@/components/DiscountCard";
 
-/**
- * DiscountSection component.
- *
- * Fetches and displays current supermarket discounts.
- * Shows a loading spinner while data is being fetched,
- * and an error message if something goes wrong.
- *
- * @returns The discount section JSX element.
- */
+const PRODUCTS_PER_PAGE = 15;
+
+/** Format date as d.m.yyyy (e.g. 12.2.2026) */
+function formatDate(iso: string | null): string {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "—";
+    return `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
+  } catch {
+    return "—";
+  }
+}
+
+/** Get valid date range from items (first item with dates) */
+function getValidDateRange(items: DiscountItem[]): { from: string; to: string } | null {
+  for (const item of items) {
+    if (item.start_date || item.end_date) {
+      return {
+        from: formatDate(item.start_date),
+        to: formatDate(item.end_date),
+      };
+    }
+  }
+  return null;
+}
+
 export default function DiscountSection() {
-  // --- State ---
-  // "state" is data that can change over time and causes the UI to update.
   const [discounts, setDiscounts] = useState<DiscountResponse[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<string>("all");
+  const [page, setPage] = useState<number>(1);
 
-  // --- Fetch discounts on component mount ---
-  // useEffect runs code after the component is displayed on screen.
-  // The empty [] means it runs once when the component first appears.
   useEffect(() => {
     async function fetchDiscounts() {
       try {
@@ -63,23 +67,39 @@ export default function DiscountSection() {
     fetchDiscounts();
   }, []);
 
-  // --- Filter discounts by supermarket ---
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [activeFilter]);
+
   const filteredDiscounts =
     activeFilter === "all"
       ? discounts
       : discounts.filter((d) => d.supermarket === activeFilter);
 
-  // --- Loading State ---
+  const allItems = useMemo(
+    () => filteredDiscounts.flatMap((d) => d.items),
+    [filteredDiscounts]
+  );
+
+  const dateRange = useMemo(
+    () => getValidDateRange(allItems),
+    [allItems]
+  );
+
+  const totalPages = Math.ceil(allItems.length / PRODUCTS_PER_PAGE) || 1;
+  const startIdx = (page - 1) * PRODUCTS_PER_PAGE;
+  const paginatedItems = allItems.slice(startIdx, startIdx + PRODUCTS_PER_PAGE);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-orange-500 border-t-transparent"></div>
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-orange-500 border-t-transparent" />
         <span className="ml-3 text-gray-500">Loading deals...</span>
       </div>
     );
   }
 
-  // --- Error State ---
   if (error) {
     return (
       <div className="rounded-lg bg-red-50 p-6 text-center text-red-600">
@@ -94,11 +114,10 @@ export default function DiscountSection() {
     );
   }
 
-  // --- Main Content ---
   return (
     <div>
       {/* Supermarket Filter Buttons */}
-      <div className="mb-6 flex justify-center gap-3">
+      <div className="mb-6 flex flex-wrap justify-center gap-3">
         {["all", "albert_heijn", "jumbo"].map((filter) => (
           <button
             key={filter}
@@ -118,19 +137,54 @@ export default function DiscountSection() {
         ))}
       </div>
 
-      {/* Discount Cards Grid */}
-      {filteredDiscounts.length === 0 ? (
+      {/* Valid date range - shown when Albert Heijn or Jumbo is selected */}
+      {activeFilter !== "all" && dateRange && (
+        <p className="mb-4 text-center text-sm text-gray-600">
+          Valid from {dateRange.from} to {dateRange.to}
+        </p>
+      )}
+
+      {/* Product grid + pagination */}
+      {allItems.length === 0 ? (
         <p className="py-8 text-center text-gray-400">
           No discounts available yet. Check back soon!
         </p>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredDiscounts.map((discountGroup) =>
-            discountGroup.items.map((item, index) => (
-              <DiscountCard key={`${discountGroup.supermarket}-${index}`} item={item} />
-            ))
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+            {paginatedItems.map((item, index) => (
+              <DiscountCard
+                key={`${item.id ?? index}-${item.raw_name}`}
+                item={item}
+              />
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="mt-6 flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 disabled:opacity-50 hover:bg-gray-200"
+              >
+                Previous
+              </button>
+              <span className="px-4 text-sm text-gray-600">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 disabled:opacity-50 hover:bg-gray-200"
+              >
+                Next
+              </button>
+            </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );
