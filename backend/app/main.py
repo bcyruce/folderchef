@@ -91,18 +91,26 @@ app = FastAPI(
 # CORS Middleware
 # ------------------------------------------------------------------
 # CORS = Cross-Origin Resource Sharing
-# This allows our frontend (running on localhost:3000) to make
-# requests to our backend (running on localhost:8000).
-# Without this, the browser would block the requests.
+# This allows our frontend (e.g. localhost:3000 or Railway/Vercel URL) to
+# make requests to the backend. Without this, the browser blocks cross-origin requests.
+def _cors_origins() -> list[str]:
+    origins = [
+        settings.FRONTEND_URL,
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+    if settings.CORS_ORIGINS:
+        origins.extend(o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip())
+    return list(dict.fromkeys(origins))  # unique, preserve order
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.FRONTEND_URL,    # e.g., "http://localhost:3000"
-        "http://localhost:3000",   # Always allow local dev
-    ],
+    allow_origins=_cors_origins(),
+    allow_origin_regex=r"https://.*\.(railway\.app|up\.railway\.app|vercel\.app|web\.app)",  # production deployments
     allow_credentials=True,       # Allow cookies to be sent
-    allow_methods=["*"],          # Allow all HTTP methods (GET, POST, etc.)
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # explicit for preflight
     allow_headers=["*"],          # Allow all headers
+    expose_headers=["*"],
 )
 
 

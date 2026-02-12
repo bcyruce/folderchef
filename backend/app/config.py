@@ -44,6 +44,10 @@ class Settings(BaseSettings):
 
         FRONTEND_URL (str):
             Frontend URL for CORS. Default: "http://localhost:3000"
+
+        CORS_ORIGINS (str):
+            Optional comma-separated list of extra CORS origins (e.g. production frontend URL).
+            Example: "https://myapp.railway.app,https://myapp.vercel.app"
     """
 
     # --- Database ---
@@ -61,6 +65,7 @@ class Settings(BaseSettings):
 
     # --- CORS ---
     FRONTEND_URL: str = "http://localhost:3000"
+    CORS_ORIGINS: str = ""  # Comma-separated extra origins for production
 
     model_config = SettingsConfigDict(
         env_file=".env",
