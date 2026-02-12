@@ -179,11 +179,9 @@ export default function RecipeSection() {
         </div>
       ) : generated ? (
         <div className="py-8 text-center">
-          <p className="text-gray-400">
-            No recipes generated yet. Try again with different preferences.
-          </p>
-          <p className="mt-2 text-sm text-gray-500">
-            If the backend has not implemented recipe generation yet, you will see an empty list here even when the request succeeds.
+          <p className="text-gray-500">
+            No recipes were generated. This may mean there are no discounted items matching your selected labels.
+            Try selecting different categories.
           </p>
         </div>
       ) : (

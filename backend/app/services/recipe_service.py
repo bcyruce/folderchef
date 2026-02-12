@@ -7,8 +7,8 @@ This module orchestrates the recipe generation process.
 WHAT DOES THIS SERVICE DO?
     It's the conductor of the recipe generation orchestra:
     1. Gets the current discounts from the DiscountService
-    2. Sends them to the AIService for recipe generation
-    3. Validates and stores the generated recipes
+    2. Filters them by user-selected labels (if provided)
+    3. Sends them + user prompt to the AIService for recipe generation
     4. Returns recipes to the API endpoints
 
 WHY A SEPARATE SERVICE?
@@ -23,7 +23,9 @@ WHY A SEPARATE SERVICE?
 
 from typing import Optional
 
-from app.models.discount import SupermarketEnum
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.discount import CleanedProduct
 from app.models.recipe import Recipe, RecipeGenerateRequest, RecipeGenerateResponse
 from app.services.ai_service import AIService
 from app.services.discount_service import DiscountService
@@ -41,76 +43,79 @@ class RecipeService:
 
     Usage:
         service = RecipeService()
-        response = await service.generate(
-            RecipeGenerateRequest(num_recipes=5)
-        )
+        response = await service.generate(db, RecipeGenerateRequest(num_recipes=5))
         for recipe in response.recipes:
             print(recipe.title)
     """
 
     def __init__(self):
-        """
-        Initialise the recipe service.
-
-        Creates instances of AIService and DiscountService.
-        """
         self.ai_service = AIService()
         self.discount_service = DiscountService()
 
     async def generate(
         self,
+        db: AsyncSession,
         request: RecipeGenerateRequest,
     ) -> RecipeGenerateResponse:
         """
         Generate recipes based on current supermarket discounts.
 
-        This is the CORE method of FolderChef. It:
-        1. Fetches current discounts
-        2. Generates recipes using AI
-        3. Returns the results
+        Pipeline:
+            1. Fetch current discounts from DB
+            2. Filter by label_filter (if provided)
+            3. Send filtered items + user_prompt to AI
+            4. Return generated recipes
 
         Args:
-            request: The generation parameters including:
-                - supermarkets to use
-                - number of recipes
-                - dietary preferences
-                - budget limit
+            db: Active database session.
+            request: Generation parameters (supermarkets, labels, prompt, etc.)
 
         Returns:
             RecipeGenerateResponse: Generated recipes with metadata.
-
-        Raises:
-            ValueError: If no discounts are available.
         """
-        # Step 1: Get current discounts
-        all_items = []
+        # Step 1: Get current discounts from database
+        all_items: list[CleanedProduct] = []
         for supermarket_name in request.supermarkets:
             try:
-                supermarket = SupermarketEnum(supermarket_name)
                 discount_responses = await self.discount_service.get_discounts(
-                    supermarket=supermarket
+                    db, supermarket=supermarket_name
                 )
-                for response in discount_responses:
-                    all_items.extend(response.items)
-            except ValueError:
-                print(f"⚠️  Unknown supermarket: {supermarket_name}")
+                for resp in discount_responses:
+                    all_items.extend(resp.items)
+            except Exception as e:
+                print(f"WARNING: Could not fetch discounts for {supermarket_name}: {e}")
+
+        print(f"Recipe generation: {len(all_items)} total discount items from DB")
+
+        # Step 2: Filter by labels (if user selected any)
+        if request.label_filter:
+            label_set = set(request.label_filter)
+            filtered = [
+                item for item in all_items
+                if label_set.intersection(item.labels)
+            ]
+            print(
+                f"  Label filter {request.label_filter}: "
+                f"{len(all_items)} -> {len(filtered)} items"
+            )
+            all_items = filtered
 
         if not all_items:
+            print("  No items after filtering — returning empty response")
             return RecipeGenerateResponse(
                 recipes=[],
                 total_recipes=0,
                 discounts_used=0,
             )
 
-        # Step 2: Generate recipes with AI
+        # Step 3: Generate recipes with AI (pass user_prompt)
         recipes = await self.ai_service.generate_recipes(
             discount_items=all_items,
             num_recipes=request.num_recipes,
-            dietary_preferences=request.dietary_preferences,
+            dietary_preferences=request.dietary_preferences or [],
             max_budget=request.max_budget_per_meal,
+            user_prompt=request.user_prompt,
         )
-
-        # Step 3: TODO — Store recipes in database
 
         # Step 4: Build response
         discounts_used = sum(
@@ -126,24 +131,9 @@ class RecipeService:
         )
 
     async def get_all_recipes(self) -> list[Recipe]:
-        """
-        Retrieve all stored recipes.
-
-        Returns:
-            list[Recipe]: All recipes from the database.
-        """
-        # TODO: Implement database retrieval
+        """Retrieve all stored recipes (TODO: implement DB retrieval)."""
         return []
 
     async def get_recipe_by_id(self, recipe_id: str) -> Optional[Recipe]:
-        """
-        Retrieve a specific recipe by its ID.
-
-        Args:
-            recipe_id: The unique identifier of the recipe.
-
-        Returns:
-            Recipe | None: The recipe if found, None otherwise.
-        """
-        # TODO: Implement database retrieval
+        """Retrieve a specific recipe by ID (TODO: implement DB retrieval)."""
         return None

@@ -294,11 +294,192 @@ No explanation, no markdown, just the JSON array."""
         num_recipes: int = 5,
         dietary_preferences: Optional[list[str]] = None,
         max_budget: Optional[float] = None,
+        user_prompt: Optional[str] = None,
     ) -> list[Recipe]:
         """
         Generate recipes using AI based on cleaned discount products.
 
-        TODO: Implement in next iteration.
+        Sends the list of discounted ingredients to GPT and asks it to
+        create structured recipe JSON.
+
+        Args:
+            discount_items: Cleaned products currently on sale.
+            num_recipes: How many recipes to generate.
+            dietary_preferences: Optional dietary filters.
+            max_budget: Optional max cost per meal in EUR.
+            user_prompt: Optional user message to guide generation.
+
+        Returns:
+            list[Recipe]: Parsed recipe objects.
         """
+        if not discount_items:
+            print("Recipe generation: no discount items provided")
+            return []
+
+        if not settings.OPENAI_API_KEY:
+            print("WARNING: No OPENAI_API_KEY set. Cannot generate recipes.")
+            return []
+
         print(f"Recipe generation: {len(discount_items)} items, {num_recipes} recipes requested")
-        return []
+
+        # Build ingredient list for prompt
+        ingredient_lines = []
+        for item in discount_items:
+            price_info = ""
+            if item.discount_price_per_unit is not None:
+                price_info = f" — €{item.discount_price_per_unit:.2f}"
+                if item.original_price is not None:
+                    price_info += f" (was €{item.original_price:.2f})"
+            elif item.original_price is not None:
+                price_info = f" — €{item.original_price:.2f}"
+
+            weight_info = f" ({item.weight})" if item.weight else ""
+            label_info = f" [{', '.join(item.labels)}]" if item.labels else ""
+
+            ingredient_lines.append(
+                f"- {item.common_name}{weight_info}{price_info}{label_info}"
+            )
+
+        ingredients_text = "\n".join(ingredient_lines)
+
+        # Build optional constraints
+        constraints = []
+        if dietary_preferences:
+            constraints.append(
+                f"Dietary preferences: {', '.join(dietary_preferences)}"
+            )
+        if max_budget is not None:
+            constraints.append(
+                f"Maximum budget per meal: €{max_budget:.2f}"
+            )
+        if user_prompt:
+            constraints.append(
+                f"User request: {user_prompt}"
+            )
+        constraints_text = "\n".join(constraints) if constraints else "No special constraints."
+
+        system_prompt = f"""You are a creative AI chef for a Dutch grocery budget app called FolderChef.
+
+Your job: Generate exactly {num_recipes} recipes using PRIMARILY ingredients from the discounted items list below. You may add common pantry staples (salt, pepper, oil, water) that are not on the list, but the MAIN ingredients should come from the discount list.
+
+DISCOUNTED INGREDIENTS AVAILABLE:
+{ingredients_text}
+
+CONSTRAINTS:
+{constraints_text}
+
+For each recipe provide:
+- title: A catchy recipe name
+- description: 1-2 sentence description
+- servings: number of people (typically 2-4)
+- prep_time_minutes: realistic prep time
+- cook_time_minutes: realistic cook time
+- estimated_cost: total cost in EUR (use the discount prices)
+- savings_percentage: estimated % saved vs buying at full price (0-50 range)
+- ingredients: list of objects with "name", "quantity", "is_discounted" (true if from the list), "estimated_price" (in EUR or null)
+- instructions: list of step-by-step strings
+- tags: relevant tags like "vegetarian", "quick", "budget", "healthy", "dutch", etc.
+- supermarkets: which supermarkets have the ingredients (from the discount list)
+
+RESPOND WITH ONLY a valid JSON object: {{"recipes": [...]}}
+No explanation, no markdown, just JSON."""
+
+        user_message = "Generate the recipes now."
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+                temperature=0.7,
+                response_format={"type": "json_object"},
+            )
+
+            raw_content = response.choices[0].message.content or "{}"
+            print(f"  AI recipe response length: {len(raw_content)} chars")
+
+            return self._parse_recipe_response(raw_content, discount_items)
+
+        except Exception as e:
+            print(f"  ERROR generating recipes: {e}")
+            return []
+
+    def _parse_recipe_response(
+        self,
+        content: str,
+        discount_items: list[CleanedProduct],
+    ) -> list[Recipe]:
+        """
+        Parse AI JSON response into Recipe objects.
+
+        Args:
+            content: Raw JSON string from GPT.
+            discount_items: Original discount items (for supermarket info).
+
+        Returns:
+            list[Recipe]: Parsed recipes.
+        """
+        try:
+            data = json.loads(content)
+
+            # Handle wrapped format
+            recipes_data = []
+            if isinstance(data, dict):
+                for key, value in data.items():
+                    if isinstance(value, list):
+                        recipes_data = value
+                        break
+            elif isinstance(data, list):
+                recipes_data = data
+
+            if not recipes_data:
+                print("  WARNING: No recipes found in AI response")
+                return []
+
+            # Collect unique supermarkets from discount items
+            available_supermarkets = list(
+                {item.supermarket for item in discount_items}
+            )
+
+            recipes = []
+            for idx, r in enumerate(recipes_data):
+                try:
+                    from app.models.recipe import RecipeIngredient
+
+                    ingredients = []
+                    for ing in r.get("ingredients", []):
+                        ingredients.append(RecipeIngredient(
+                            name=ing.get("name", "Unknown"),
+                            quantity=ing.get("quantity", ""),
+                            is_discounted=ing.get("is_discounted", False),
+                            estimated_price=ing.get("estimated_price"),
+                            discount_item_id=None,
+                        ))
+
+                    recipe = Recipe(
+                        id=f"gen-{idx}",
+                        title=r.get("title", f"Recipe {idx + 1}"),
+                        description=r.get("description", ""),
+                        servings=r.get("servings", 4),
+                        prep_time_minutes=r.get("prep_time_minutes", 15),
+                        cook_time_minutes=r.get("cook_time_minutes", 30),
+                        estimated_cost=r.get("estimated_cost", 0),
+                        savings_percentage=r.get("savings_percentage"),
+                        ingredients=ingredients,
+                        instructions=r.get("instructions", []),
+                        tags=r.get("tags", []),
+                        image_url=None,
+                        supermarkets=r.get("supermarkets", available_supermarkets),
+                    )
+                    recipes.append(recipe)
+                except Exception as e:
+                    print(f"  WARNING: Could not parse recipe {idx}: {e}")
+
+            print(f"  Parsed {len(recipes)} recipes from AI response")
+            return recipes
+
+        except json.JSONDecodeError as e:
+            print(f"  WARNING: Could not parse recipe JSON: {e}")
+            return []
