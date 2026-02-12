@@ -23,13 +23,16 @@
 import { useState } from "react";
 import { apiClient } from "@/lib/api";
 import type { Recipe } from "@/types/recipe";
+import { VALID_LABELS } from "@/types/recipe";
 import RecipeCard from "@/components/RecipeCard";
+
+const MAX_LABELS = 5;
 
 /**
  * RecipeSection component.
  *
- * Displays AI-generated recipes with a generate button.
- * Manages the loading state during recipe generation.
+ * Displays a prompt text box, label selector (max 5), and generate button.
+ * Only discount items with selected labels are sent to the AI.
  *
  * @returns The recipe section JSX element.
  */
@@ -39,14 +42,29 @@ export default function RecipeSection() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [generated, setGenerated] = useState<boolean>(false);
+  const [userPrompt, setUserPrompt] = useState<string>("");
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+
+  function toggleLabel(label: string) {
+    setSelectedLabels((prev) => {
+      if (prev.includes(label)) {
+        return prev.filter((l) => l !== label);
+      }
+      if (prev.length >= MAX_LABELS) return prev;
+      return [...prev, label];
+    });
+  }
+
+  const canGenerate = selectedLabels.length >= 1 && !loading;
 
   /**
    * Handle the "Generate Recipes" button click.
    *
-   * Calls the backend API to generate recipes from current discounts.
-   * Updates the UI with the results or an error message.
+   * Sends user prompt and selected labels; backend filters discount items
+   * by label and passes them + prompt to the AI.
    */
   async function handleGenerate() {
+    if (!canGenerate) return;
     try {
       setLoading(true);
       setError(null);
@@ -56,6 +74,8 @@ export default function RecipeSection() {
         num_recipes: 6,
         dietary_preferences: [],
         max_budget_per_meal: undefined,
+        user_prompt: userPrompt.trim() || undefined,
+        label_filter: selectedLabels,
       });
 
       setRecipes(response.recipes);
@@ -70,11 +90,53 @@ export default function RecipeSection() {
 
   return (
     <div>
+      {/* User prompt + label selector */}
+      <div className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <label htmlFor="recipe-prompt" className="mb-2 block text-sm font-medium text-gray-700">
+          What do you feel like?
+        </label>
+        <textarea
+          id="recipe-prompt"
+          value={userPrompt}
+          onChange={(e) => setUserPrompt(e.target.value)}
+          placeholder="e.g. quick dinner, no oven, under 30 minutes, something healthy..."
+          rows={2}
+          className="mb-4 w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+        />
+        <label className="mb-2 block text-sm font-medium text-gray-700">
+          Filter by category (choose 1–5; only these items go to the AI)
+        </label>
+        <div className="mb-4 flex flex-wrap gap-2">
+          {VALID_LABELS.map((label) => {
+            const selected = selectedLabels.includes(label);
+            const disabled = !selected && selectedLabels.length >= MAX_LABELS;
+            return (
+              <button
+                key={label}
+                type="button"
+                onClick={() => toggleLabel(label)}
+                disabled={disabled}
+                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                  selected
+                    ? "bg-orange-500 text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mb-4 text-xs text-gray-500">
+          {selectedLabels.length} of {MAX_LABELS} selected. Select at least one to generate recipes.
+        </p>
+      </div>
+
       {/* Generate Button */}
       <div className="mb-8 text-center">
         <button
           onClick={handleGenerate}
-          disabled={loading}
+          disabled={!canGenerate}
           className="rounded-full bg-orange-500 px-8 py-3 text-lg font-semibold text-white shadow-lg transition hover:bg-orange-600 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50"
         >
           {loading ? (

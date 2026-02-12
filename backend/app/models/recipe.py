@@ -32,7 +32,9 @@ EXAMPLE RECIPE JSON:
 
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.models.discount import VALID_LABELS
 
 
 class RecipeIngredient(BaseModel):
@@ -219,6 +221,13 @@ class RecipeGenerateRequest(BaseModel):
         max_budget_per_meal (float | None):
             Maximum budget per meal in EUR.
             None = no budget limit.
+
+        user_prompt (str | None):
+            Optional user message to guide recipe generation (e.g. "quick dinner", "no oven").
+
+        label_filter (list[str] | None):
+            Optional list of labels (max 5). Only discount items with at least one
+            of these labels are sent to the AI. Labels must be from VALID_LABELS.
     """
 
     supermarkets: list[str] = Field(
@@ -241,6 +250,28 @@ class RecipeGenerateRequest(BaseModel):
         description="Max budget per meal in EUR",
         ge=0,
     )
+    user_prompt: Optional[str] = Field(
+        default=None,
+        description="User message to guide recipe generation",
+        max_length=2000,
+    )
+    label_filter: Optional[list[str]] = Field(
+        default=None,
+        description="Filter discount items by these labels (max 5); only these are sent to AI",
+        max_length=5,
+    )
+
+    @field_validator("label_filter")
+    @classmethod
+    def validate_label_filter(cls, v: Optional[list[str]]) -> Optional[list[str]]:
+        if v is None or len(v) == 0:
+            return v
+        if len(v) > 5:
+            raise ValueError("At most 5 labels allowed")
+        invalid = [lbl for lbl in v if lbl not in VALID_LABELS]
+        if invalid:
+            raise ValueError(f"Invalid labels (must be from fixed set): {invalid}")
+        return v
 
 
 class RecipeGenerateResponse(BaseModel):

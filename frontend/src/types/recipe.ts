@@ -9,6 +9,32 @@
  */
 
 /**
+ * Fixed set of food labels from the database (cleaned_products.labels).
+ * User can select up to 5 to filter which discounted items are sent to the AI.
+ */
+export const VALID_LABELS: readonly string[] = [
+  "bio",
+  "fresh",
+  "meat",
+  "fish",
+  "vegetable",
+  "fruit",
+  "dairy",
+  "eggs",
+  "cheese",
+  "ready-to-eat",
+  "bakery",
+  "pantry",
+  "cooking-adds",
+  "frozen",
+  "snack",
+  "candy",
+  "beverage",
+  "salad",
+  "asia",
+] as const;
+
+/**
  * A single ingredient in a recipe.
  *
  * Links to a potential discount item so the UI can highlight
@@ -73,12 +99,16 @@ export interface Recipe {
  * @property num_recipes - How many recipes to generate.
  * @property dietary_preferences - User's dietary restrictions.
  * @property max_budget_per_meal - Optional max budget per meal in EUR.
+ * @property user_prompt - Optional user message to guide recipe generation.
+ * @property label_filter - Optional list of labels (max 5); only items with these labels are sent to AI.
  */
 export interface RecipeGenerateRequest {
   supermarkets: string[];
   num_recipes: number;
   dietary_preferences: string[];
   max_budget_per_meal?: number;
+  user_prompt?: string;
+  label_filter?: string[];
 }
 
 /**
