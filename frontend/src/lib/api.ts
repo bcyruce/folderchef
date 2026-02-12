@@ -74,12 +74,21 @@ async function fetchAPI<T>(
     ...options,
   });
 
-  // If the server returned an error, throw a descriptive error
+  // If the server returned an error, throw with backend's detail if available
   if (!response.ok) {
     const errorBody = await response.text();
-    throw new Error(
-      `API Error ${response.status}: ${response.statusText} — ${errorBody}`
-    );
+    let message = `API Error ${response.status}: ${response.statusText}`;
+    try {
+      const parsed = JSON.parse(errorBody) as { detail?: string };
+      if (typeof parsed.detail === "string") {
+        message = parsed.detail;
+      } else if (errorBody) {
+        message += ` — ${errorBody}`;
+      }
+    } catch {
+      if (errorBody) message += ` — ${errorBody}`;
+    }
+    throw new Error(message);
   }
 
   // Parse and return the JSON response

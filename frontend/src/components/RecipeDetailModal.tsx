@@ -8,6 +8,7 @@
 
 "use client";
 
+import { useEffect } from "react";
 import type { Recipe, RecipeIngredient } from "@/types/recipe";
 
 interface RecipeDetailModalProps {
@@ -54,6 +55,14 @@ function IngredientRow({ ing }: { ing: RecipeIngredient }) {
 export default function RecipeDetailModal({ recipe, onClose }: RecipeDetailModalProps) {
   const totalTime = recipe.prep_time_minutes + recipe.cook_time_minutes;
   const discountedCount = recipe.ingredients.filter((i) => i.is_discounted).length;
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
 
   return (
     <div

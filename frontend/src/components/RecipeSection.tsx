@@ -20,7 +20,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api";
 import type { Recipe } from "@/types/recipe";
 import { VALID_LABELS } from "@/types/recipe";
@@ -28,6 +28,7 @@ import RecipeCard from "@/components/RecipeCard";
 import RecipeDetailModal from "@/components/RecipeDetailModal";
 
 const MAX_LABELS = 5;
+const RECIPES_STORAGE_KEY = "folderchef_recipes";
 
 /**
  * RecipeSection component.
@@ -46,6 +47,33 @@ export default function RecipeSection() {
   const [userPrompt, setUserPrompt] = useState<string>("");
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+
+  // Restore recipes from localStorage on mount (so they persist across refresh)
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(RECIPES_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored) as Recipe[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setRecipes(parsed);
+          setGenerated(true);
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }, []);
+
+  // Save recipes when they change
+  useEffect(() => {
+    if (recipes.length > 0) {
+      try {
+        localStorage.setItem(RECIPES_STORAGE_KEY, JSON.stringify(recipes));
+      } catch {
+        // ignore quota errors
+      }
+    }
+  }, [recipes]);
 
   function toggleLabel(label: string) {
     setSelectedLabels((prev) => {
@@ -87,7 +115,8 @@ export default function RecipeSection() {
       setGenerated(true);
     } catch (err) {
       console.error("Failed to generate recipes:", err);
-      setError("Could not generate recipes. Please try again.");
+      const message = err instanceof Error ? err.message : "Could not generate recipes. Please try again.";
+      setError(message);
     } finally {
       const elapsed = Date.now() - start;
       const remaining = Math.max(0, minLoadingMs - elapsed);

@@ -317,8 +317,9 @@ No explanation, no markdown, just the JSON array."""
             return []
 
         if not settings.OPENAI_API_KEY:
-            print("WARNING: No OPENAI_API_KEY set. Cannot generate recipes.")
-            return []
+            raise ValueError(
+                "OpenAI API key not configured. Set OPENAI_API_KEY environment variable."
+            )
 
         print(f"Recipe generation: {len(discount_items)} items, {num_recipes} recipes requested")
 
@@ -410,7 +411,7 @@ No explanation, no markdown, just JSON."""
 
         except Exception as e:
             print(f"  ERROR generating recipes: {e}")
-            return []
+            raise
 
     def _parse_recipe_response(
         self,
@@ -485,9 +486,14 @@ No explanation, no markdown, just JSON."""
                 except Exception as e:
                     print(f"  WARNING: Could not parse recipe {idx}: {e}")
 
+            if recipes_data and not recipes:
+                raise ValueError(
+                    f"AI returned {len(recipes_data)} recipes but none could be parsed. "
+                    "Check the AI response format."
+                )
             print(f"  Parsed {len(recipes)} recipes from AI response")
             return recipes
 
         except json.JSONDecodeError as e:
             print(f"  WARNING: Could not parse recipe JSON: {e}")
-            return []
+            raise ValueError(f"AI returned invalid JSON: {e}") from e

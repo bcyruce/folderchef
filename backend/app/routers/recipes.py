@@ -29,7 +29,11 @@ from app.models.recipe import (
     RecipeGenerateRequest,
     RecipeGenerateResponse,
 )
-from app.services.recipe_service import RecipeService
+from app.services.recipe_service import (
+    RecipeService,
+    NoDiscountDataError,
+    RecipeGenerationError,
+)
 
 router = APIRouter()
 
@@ -62,6 +66,10 @@ async def generate_recipes(
     """
     try:
         return await _recipe_service.generate(db, request)
+    except NoDiscountDataError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RecipeGenerationError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         print(f"ERROR in generate_recipes: {e}")
         raise HTTPException(status_code=503, detail=str(e))

@@ -31,6 +31,14 @@ from app.services.ai_service import AIService
 from app.services.discount_service import DiscountService
 
 
+class NoDiscountDataError(Exception):
+    """Raised when no discount data is available for recipe generation."""
+
+
+class RecipeGenerationError(Exception):
+    """Raised when AI recipe generation fails."""
+
+
 class RecipeService:
     """
     Service for recipe generation and management.
@@ -85,6 +93,12 @@ class RecipeService:
             except Exception as e:
                 print(f"WARNING: Could not fetch discounts for {supermarket_name}: {e}")
 
+        if not all_items:
+            print("  No discount data in database")
+            raise NoDiscountDataError(
+                "No discount data available. Run POST /api/discounts/refresh first to populate the database."
+            )
+
         print(f"Recipe generation: {len(all_items)} total discount items from DB")
 
         # Step 2: Filter by labels (if user selected any)
@@ -98,24 +112,27 @@ class RecipeService:
                 f"  Label filter {request.label_filter}: "
                 f"{len(all_items)} -> {len(filtered)} items"
             )
-            all_items = filtered
-
-        if not all_items:
-            print("  No items after filtering — returning empty response")
-            return RecipeGenerateResponse(
-                recipes=[],
-                total_recipes=0,
-                discounts_used=0,
-            )
+            # Fallback: if filter yields 0 (e.g. items have no labels), use all items
+            if filtered:
+                all_items = filtered
+            else:
+                print(
+                    "  No items match labels; using all items. "
+                    "(Items may have empty labels if cleaning ran without API key.)"
+                )
 
         # Step 3: Generate recipes with AI (pass user_prompt)
-        recipes = await self.ai_service.generate_recipes(
-            discount_items=all_items,
-            num_recipes=request.num_recipes,
-            dietary_preferences=request.dietary_preferences or [],
-            max_budget=request.max_budget_per_meal,
-            user_prompt=request.user_prompt,
-        )
+        try:
+            recipes = await self.ai_service.generate_recipes(
+                discount_items=all_items,
+                num_recipes=request.num_recipes,
+                dietary_preferences=request.dietary_preferences or [],
+                max_budget=request.max_budget_per_meal,
+                user_prompt=request.user_prompt,
+            )
+        except Exception as e:
+            print(f"  AI recipe generation failed: {e}")
+            raise RecipeGenerationError(str(e)) from e
 
         # Step 4: Build response
         discounts_used = sum(
