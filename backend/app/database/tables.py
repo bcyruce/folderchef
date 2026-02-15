@@ -54,7 +54,8 @@ class RawDiscountTable(Base):
         discount_price_per_unit -- Price per unit after discount
         discount_info   -- Discount label (e.g. "1+1 gratis")
         weight          -- Product weight/size (e.g. "500g")
-        price_per_kg    -- Price per kilogram in EUR
+        price_per_unit  -- Price per unit in EUR (unit from weight)
+        product_url     -- URL to product page
         start_date      -- Discount start date
         end_date        -- Discount end date
         image_url       -- Product image URL
@@ -72,7 +73,8 @@ class RawDiscountTable(Base):
     discount_price_per_unit = Column(Float, nullable=True)
     discount_info = Column(String(200), nullable=False)
     weight = Column(String(100), nullable=True)
-    price_per_kg = Column(Float, nullable=True)
+    price_per_unit = Column(Float, nullable=True)
+    product_url = Column(Text, nullable=True)
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
     image_url = Column(Text, nullable=True)
@@ -108,7 +110,8 @@ class CleanedProductTable(Base):
         discount_price_per_unit -- Price per unit after discount
         discount_info           -- Discount label (e.g. "1+1 gratis")
         weight                  -- Product weight/size
-        price_per_kg            -- Price per kilogram
+        price_per_unit          -- Price per unit in EUR
+        product_url             -- URL to product page
         start_date              -- Discount start date
         end_date                -- Discount end date
         image_url               -- Product image URL
@@ -134,7 +137,8 @@ class CleanedProductTable(Base):
     discount_price_per_unit = Column(Float, nullable=True)
     discount_info = Column(String(200), nullable=False)
     weight = Column(String(100), nullable=True)
-    price_per_kg = Column(Float, nullable=True)
+    price_per_unit = Column(Float, nullable=True)
+    product_url = Column(Text, nullable=True)
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
     image_url = Column(Text, nullable=True)

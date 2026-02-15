@@ -25,13 +25,14 @@ export const VALID_LABELS: readonly string[] = [
   "ready-to-eat",
   "bakery",
   "pantry",
-  "cooking-adds",
+  "cooking aids",
   "frozen",
   "snack",
   "candy",
   "beverage",
   "salad",
   "asia",
+  "non-food",
 ] as const;
 
 /**

@@ -3,6 +3,7 @@
  * =======================================
  *
  * Compact card showing: product image, name, original price, deal price, discount type.
+ * Links to product page when product_url is available.
  */
 
 import type { DiscountItem } from "@/types/discount";
@@ -13,9 +14,16 @@ interface DiscountCardProps {
 
 export default function DiscountCard({ item }: DiscountCardProps) {
   const displayName = item.raw_name || item.common_name;
+  const CardWrapper = item.product_url ? "a" : "div";
+  const wrapperProps = item.product_url
+    ? { href: item.product_url, target: "_blank", rel: "noopener noreferrer" }
+    : {};
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl bg-white shadow-md transition hover:shadow-lg">
+    <CardWrapper
+      className="flex flex-col overflow-hidden rounded-xl bg-white shadow-md transition hover:shadow-lg no-underline text-inherit"
+      {...wrapperProps}
+    >
       {/* Product image */}
       <div className="aspect-square w-full bg-gray-100">
         {item.image_url ? (
@@ -54,6 +62,6 @@ export default function DiscountCard({ item }: DiscountCardProps) {
           )}
         </div>
       </div>
-    </div>
+    </CardWrapper>
   );
 }

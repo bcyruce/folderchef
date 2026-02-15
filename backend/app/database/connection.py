@@ -93,6 +93,7 @@ async def get_db():
 async def init_db():
     """
     Create all database tables if they don't exist yet.
+    Run migrations for schema changes (price_per_kg -> price_per_unit, product_url).
 
     Called once during app startup.
     """
@@ -101,7 +102,25 @@ async def init_db():
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_run_migrations)
+
     print("Database tables created")
+
+
+def _run_migrations(conn):
+    """Add new columns if they don't exist (for existing DBs)."""
+    from sqlalchemy import text
+
+    for table, col, col_type in [
+        ("raw_discounts", "product_url", "TEXT"),
+        ("raw_discounts", "price_per_unit", "FLOAT"),
+        ("cleaned_products", "product_url", "TEXT"),
+        ("cleaned_products", "price_per_unit", "FLOAT"),
+    ]:
+        try:
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"))
+        except Exception:
+            pass  # Column may already exist
 
 
 async def close_db():

@@ -226,14 +226,19 @@ class AlbertHeijnScraper(BaseScraper):
             # --- Weight / size ---
             weight = product.get("salesUnitSize", None)
 
-            # --- Price per kg ---
-            price_per_kg = self._parse_price_per_kg(
-                product.get("unitPriceDescription", "")
+            # --- Price per unit (kg, liter, etc. depending on weight) ---
+            price_per_unit = self._parse_price_per_unit(
+                product.get("unitPriceDescription", ""),
+                product.get("salesUnitSize", ""),
             )
 
-            # --- Dates ---
+            # --- Product URL ---
+            product_url = self._build_product_url(product)
+
+            # --- Dates (sanitize invalid end dates like 2999-12-31) ---
             start_date = self._parse_date(product.get("bonusStartDate"))
             end_date = self._parse_date(product.get("bonusEndDate"))
+            end_date = self._sanitize_end_date(end_date, start_date)
 
             # --- Image ---
             images = product.get("images", [])
@@ -250,7 +255,8 @@ class AlbertHeijnScraper(BaseScraper):
                 discount_price_per_unit=discount_price_per_unit,
                 discount_info=discount_info,
                 weight=weight,
-                price_per_kg=price_per_kg,
+                price_per_unit=price_per_unit,
+                product_url=product_url,
                 start_date=start_date,
                 end_date=end_date,
                 image_url=image_url,
@@ -332,35 +338,66 @@ class AlbertHeijnScraper(BaseScraper):
 
         return None
 
-    def _parse_price_per_kg(self, unit_desc: str) -> Optional[float]:
+    def _parse_price_per_unit(
+        self, unit_desc: str, weight: str
+    ) -> Optional[float]:
         """
-        Extract price per kg from the unitPriceDescription string.
+        Extract price per unit from unitPriceDescription.
+        Unit depends on weight (kg, liter, stuks, etc).
 
         AH format examples:
             "normale prijs per kg EUR 6.36"
-            "prijs per kg EUR 12.50"
-            "per kg 8.99"
-
-        Args:
-            unit_desc: The unit price description from AH.
+            "prijs per liter €1.77"
+            "per stuk 2.50"
 
         Returns:
-            Price per kg as float, or None if not parseable.
+            Price per unit as float, or None if not parseable.
         """
         if not unit_desc:
             return None
 
-        # Look for a price pattern after "kg"
-        match = re.search(r"(?:per\s*kg|per\s*kilo)[^\d]*([\d]+[.,][\d]+)", unit_desc, re.IGNORECASE)
+        # Look for price after "per kg", "per liter", "per stuk", etc.
+        match = re.search(
+            r"(?:per\s*(?:kg|kilo|liter|litre|stuk|stuks))[^\d]*(?:EUR|€)?\s*([\d]+[.,][\d]+)",
+            unit_desc,
+            re.IGNORECASE,
+        )
         if match:
             return float(match.group(1).replace(",", "."))
 
-        # Try pattern: "EUR X.XX" after "kg"
-        match = re.search(r"kg.*?(?:EUR|€)\s*([\d]+[.,][\d]+)", unit_desc, re.IGNORECASE)
+        # Fallback: any "EUR X.XX" or "€ X.XX"
+        match = re.search(r"(?:EUR|€)\s*([\d]+[.,][\d]+)", unit_desc, re.IGNORECASE)
         if match:
             return float(match.group(1).replace(",", "."))
 
         return None
+
+    def _build_product_url(self, product: dict) -> Optional[str]:
+        """Build AH product URL from webshopId."""
+        webshop_id = product.get("webshopId")
+        if webshop_id is not None:
+            return f"https://www.ah.nl/producten/product/wi{webshop_id}"
+        return None
+
+    def _sanitize_end_date(
+        self,
+        end_date: Optional[date],
+        start_date: Optional[date],
+    ) -> Optional[date]:
+        """
+        Fix invalid end dates (e.g. 2999-12-31 used as placeholder).
+        If end_date is far in future, use start_date + 7 days or None.
+        """
+        if not end_date:
+            return None
+        # Reject placeholder/far-future dates
+        if end_date.year > date.today().year + 1:
+            if start_date:
+                from datetime import timedelta
+
+                return start_date + timedelta(days=6)  # Assume ~1 week deal
+            return None
+        return end_date
 
     def _parse_date(self, date_str: Optional[str]) -> Optional[date]:
         """

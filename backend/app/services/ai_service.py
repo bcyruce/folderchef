@@ -144,7 +144,8 @@ Your job:
    - "ready-to-eat" = pre-made meals, salads, sandwiches
    - "bakery" = bread, pastries, cakes
    - "pantry" = dry goods, canned food, pasta, rice, sauces
-   - "cooking-adds" = herbs, spices, oils, vinegar, condiments
+   - "cooking aids" = herbs, spices, oils, vinegar, condiments
+   - "non-food" = not a food product (cleaning, household, personal care, etc.). Use ONLY if it clearly is not food.
    - "frozen" = frozen food
    - "snack" = chips, crackers, savory snacks
    - "candy" = chocolate, sweets, cookies
@@ -197,7 +198,8 @@ No explanation, no markdown, just the JSON array."""
                 discount_price_per_unit=raw.discount_price_per_unit,
                 discount_info=raw.discount_info,
                 weight=raw.weight,
-                price_per_kg=raw.price_per_kg,
+                price_per_unit=raw.price_per_unit,
+                product_url=raw.product_url,
                 start_date=raw.start_date,
                 end_date=raw.end_date,
                 image_url=raw.image_url,
@@ -276,7 +278,8 @@ No explanation, no markdown, just the JSON array."""
                 discount_price_per_unit=p.discount_price_per_unit,
                 discount_info=p.discount_info,
                 weight=p.weight,
-                price_per_kg=p.price_per_kg,
+                price_per_unit=p.price_per_unit,
+                product_url=p.product_url,
                 start_date=p.start_date,
                 end_date=p.end_date,
                 image_url=p.image_url,

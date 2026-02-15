@@ -13,8 +13,8 @@ THE PIPELINE:
 
 VALID LABELS (fixed set -- AI may only use these):
     bio, fresh, meat, fish, vegetable, fruit, dairy, eggs, cheese,
-    ready-to-eat, bakery, pantry, cooking-adds, frozen, snack,
-    candy, beverage, salad, asia
+    ready-to-eat, bakery, pantry, cooking aids, frozen, snack,
+    candy, beverage, salad, asia, non-food
 """
 
 from datetime import date, datetime
@@ -40,13 +40,14 @@ VALID_LABELS: list[str] = [
     "ready-to-eat",
     "bakery",
     "pantry",
-    "cooking-adds",
+    "cooking aids",
     "frozen",
     "snack",
     "candy",
     "beverage",
     "salad",
     "asia",
+    "non-food",
 ]
 
 
@@ -95,8 +96,11 @@ class RawDiscount(BaseModel):
             Product weight or size as shown on the website.
             Examples: "500g", "1 liter", "6 stuks"
 
-        price_per_kg (float | None):
-            Price per kilogram in EUR (if available).
+        price_per_unit (float | None):
+            Price per unit in EUR (unit depends on weight: kg, liter, etc.).
+
+        product_url (str | None):
+            URL to the product page on the supermarket website.
 
         start_date (date | None):
             Start date of the discount period.
@@ -113,7 +117,8 @@ class RawDiscount(BaseModel):
     discount_price_per_unit: Optional[float] = Field(default=None, ge=0)
     discount_info: str = Field(..., description="Discount label e.g. '1+1 gratis'")
     weight: Optional[str] = Field(default=None)
-    price_per_kg: Optional[float] = Field(default=None, ge=0)
+    price_per_unit: Optional[float] = Field(default=None, ge=0)
+    product_url: Optional[str] = Field(default=None)
     start_date: Optional[date] = Field(default=None)
     end_date: Optional[date] = Field(default=None)
     image_url: Optional[str] = Field(default=None)
@@ -162,8 +167,11 @@ class CleanedProduct(BaseModel):
         weight (str | None):
             Product weight or size.
 
-        price_per_kg (float | None):
-            Price per kilogram in EUR.
+        price_per_unit (float | None):
+            Price per unit in EUR (unit depends on weight).
+
+        product_url (str | None):
+            URL to the product page.
 
         start_date (date | None):
             Discount start date.
@@ -186,7 +194,8 @@ class CleanedProduct(BaseModel):
     discount_price_per_unit: Optional[float] = Field(default=None, ge=0)
     discount_info: str = Field(...)
     weight: Optional[str] = Field(default=None)
-    price_per_kg: Optional[float] = Field(default=None, ge=0)
+    price_per_unit: Optional[float] = Field(default=None, ge=0)
+    product_url: Optional[str] = Field(default=None)
     start_date: Optional[date] = Field(default=None)
     end_date: Optional[date] = Field(default=None)
     image_url: Optional[str] = Field(default=None)

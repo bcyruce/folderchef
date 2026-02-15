@@ -35,7 +35,8 @@ export interface DiscountItem {
   discount_price_per_unit: number | null;
   discount_info: string;
   weight: string | null;
-  price_per_kg: number | null;
+  price_per_unit: number | null;
+  product_url: string | null;
   start_date: string | null;
   end_date: string | null;
   image_url: string | null;

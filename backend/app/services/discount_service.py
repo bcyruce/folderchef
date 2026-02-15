@@ -17,7 +17,7 @@ BATCH NAMING:
     Re-running the same week replaces that batch only.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 from sqlalchemy import select, delete, func
@@ -266,7 +266,8 @@ class DiscountService:
                 discount_price_per_unit=row.discount_price_per_unit,
                 discount_info=row.discount_info,
                 weight=row.weight,
-                price_per_kg=row.price_per_kg,
+                price_per_unit=getattr(row, "price_per_unit", None) or getattr(row, "price_per_kg", None),
+                product_url=getattr(row, "product_url", None),
                 start_date=row.start_date,
                 end_date=row.end_date,
                 image_url=row.image_url,
@@ -312,6 +313,9 @@ class DiscountService:
             )
         )
 
+        # Use batch week for consistent start/end dates (same week = same dates)
+        week_start, week_end = self._week_start_end(week, year)
+
         # Insert raw discounts
         raw_rows = []
         for raw in raw_products:
@@ -325,9 +329,10 @@ class DiscountService:
                 discount_price_per_unit=raw.discount_price_per_unit,
                 discount_info=raw.discount_info,
                 weight=raw.weight,
-                price_per_kg=raw.price_per_kg,
-                start_date=raw.start_date,
-                end_date=raw.end_date,
+                price_per_unit=raw.price_per_unit,
+                product_url=raw.product_url,
+                start_date=week_start,
+                end_date=week_end,
                 image_url=raw.image_url,
             )
             db.add(row)
@@ -353,9 +358,10 @@ class DiscountService:
                 discount_price_per_unit=cleaned.discount_price_per_unit,
                 discount_info=cleaned.discount_info,
                 weight=cleaned.weight,
-                price_per_kg=cleaned.price_per_kg,
-                start_date=cleaned.start_date,
-                end_date=cleaned.end_date,
+                price_per_unit=cleaned.price_per_unit,
+                product_url=cleaned.product_url,
+                start_date=week_start,
+                end_date=week_end,
                 image_url=cleaned.image_url,
             )
             db.add(row)
@@ -366,6 +372,16 @@ class DiscountService:
     # ==============================================================
     # HELPERS
     # ==============================================================
+
+    @staticmethod
+    def _week_start_end(week: int, year: int) -> tuple[date, date]:
+        """Get Monday and Sunday of ISO week."""
+        # Jan 4 is always in week 1
+        jan4 = date(year, 1, 4)
+        week1_monday = jan4 - timedelta(days=jan4.weekday())
+        week_start = week1_monday + timedelta(weeks=week - 1)
+        week_end = week_start + timedelta(days=6)
+        return week_start, week_end
 
     def _get_week_label(
         self,
