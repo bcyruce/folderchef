@@ -111,7 +111,7 @@ export default function HomePage() {
 
       {/* ===== FOOTER ===== */}
       <footer className="border-t border-gray-200 bg-white py-8 text-center text-gray-500">
-        <p>&copy; 2025 FolderChef — Smart Meal Planning from Weekly Deals</p>
+        <p>&copy; 2026 FolderChef — Smart Meal Planning from Weekly Deals</p>
         <p className="mt-2 text-sm">
           Made with ❤️ in the Netherlands
         </p>

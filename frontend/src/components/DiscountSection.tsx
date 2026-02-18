@@ -137,11 +137,14 @@ export default function DiscountSection() {
         ))}
       </div>
 
-      {/* Valid date range - shown when Albert Heijn or Jumbo is selected */}
+      {/* Valid date range + discount type info - shown when Albert Heijn or Jumbo is selected */}
       {activeFilter !== "all" && dateRange && (
-        <p className="mb-4 text-center text-sm text-gray-600">
-          Valid from {dateRange.from} to {dateRange.to}
-        </p>
+        <div className="mb-4 text-center text-sm text-gray-600">
+          <p>Valid from {dateRange.from} to {dateRange.to}</p>
+          <p className="mt-1 text-xs text-gray-500">
+            Discount types: Online discount (BONUS, %, volume) · In-store deals
+          </p>
+        </div>
       )}
 
       {/* Product grid + pagination */}
@@ -150,8 +153,9 @@ export default function DiscountSection() {
           No discounts available yet. Check back soon!
         </p>
       ) : (
-        <>
-          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+        <div className="flex flex-col">
+          {/* Grid with min-height so pagination stays fixed when changing pages */}
+          <div className="grid min-h-[680px] gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
             {paginatedItems.map((item, index) => (
               <DiscountCard
                 key={`${item.id ?? index}-${item.raw_name}`}
@@ -160,9 +164,9 @@ export default function DiscountSection() {
             ))}
           </div>
 
-          {/* Pagination */}
+          {/* Pagination - fixed position at bottom of container */}
           {totalPages > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-2">
+            <div className="mt-6 flex shrink-0 items-center justify-center gap-2 py-4">
               <button
                 type="button"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -171,7 +175,7 @@ export default function DiscountSection() {
               >
                 Previous
               </button>
-              <span className="px-4 text-sm text-gray-600">
+              <span className="min-w-[120px] px-4 text-center text-sm text-gray-600">
                 Page {page} of {totalPages}
               </span>
               <button
@@ -184,7 +188,7 @@ export default function DiscountSection() {
               </button>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

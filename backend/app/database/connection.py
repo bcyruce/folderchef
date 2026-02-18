@@ -31,6 +31,8 @@ is_sqlite = settings.DATABASE_URL.startswith("sqlite")
 
 engine_kwargs = {
     "echo": settings.DEBUG,
+    # Reconnect if connection went stale (e.g. idle timeout during long AI cleaning)
+    "pool_pre_ping": True,
 }
 
 # SQLite does not support pool_size / max_overflow
@@ -114,8 +116,15 @@ def _run_migrations(conn):
     for table, col, col_type in [
         ("raw_discounts", "product_url", "TEXT"),
         ("raw_discounts", "price_per_unit", "FLOAT"),
+        ("raw_discounts", "image_url", "TEXT"),
+        ("raw_discounts", "start_date", "DATE"),
+        ("raw_discounts", "end_date", "DATE"),
+
         ("cleaned_products", "product_url", "TEXT"),
         ("cleaned_products", "price_per_unit", "FLOAT"),
+        ("cleaned_products", "image_url", "TEXT"),
+        ("cleaned_products", "start_date", "DATE"),
+        ("cleaned_products", "end_date", "DATE"),
     ]:
         try:
             conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"))

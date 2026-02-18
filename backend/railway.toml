@@ -14,10 +14,16 @@
 #      Then add a cron schedule in the Railway dashboard:
 #        0 6 * * 1    (every Monday at 06:00 UTC)
 #
-#   2. MANUAL (one-off):
-#      In the Railway dashboard, open a shell on any service
-#      and run:
-#        python -m app.cli scrape --week 6 --year 2026
+#   2. MANUAL from local (railway run):
+#      From backend folder:
+#        railway run python -m app.cli scrape
+#
+#      REQUIREMENT: Add DATABASE_PUBLIC_URL to your backend service.
+#      Private URL (postgres.railway.internal) does not work from local.
+#      - Railway dashboard → PostgreSQL service → Variables → copy DATABASE_PUBLIC_URL
+#      - Backend service → Variables → New variable:
+#          DATABASE_PUBLIC_URL = ${{Postgres.DATABASE_PUBLIC_URL}}
+#        (adjust "Postgres" to your PostgreSQL service name if different)
 #
 # ============================================================
 

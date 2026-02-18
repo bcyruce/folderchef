@@ -68,7 +68,7 @@ async def run_scrape(
 
     Connects directly to the database (no FastAPI needed).
     """
-    from app.database.connection import init_db, close_db, async_session_factory
+    from app.database.connection import init_db, close_db
     from app.services.discount_service import DiscountService
 
     # Resolve defaults
@@ -93,20 +93,13 @@ async def run_scrape(
     await init_db()
 
     try:
-        async with async_session_factory() as session:
-            try:
-                summary = await service.refresh_discounts(
-                    db=session,
-                    supermarket=supermarket,
-                    week=week,
-                    year=year,
-                )
-                await session.commit()
-            except Exception:
-                await session.rollback()
-                raise
-            finally:
-                await session.close()
+        # Pass db=None so service uses fresh session for store (avoids idle timeout)
+        summary = await service.refresh_discounts(
+            db=None,
+            supermarket=supermarket,
+            week=week,
+            year=year,
+        )
 
         print("\n" + "=" * 60)
         print("DONE!")

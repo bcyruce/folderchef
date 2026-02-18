@@ -116,7 +116,7 @@ class DiscountService:
 
     async def refresh_discounts(
         self,
-        db: AsyncSession,
+        db: Optional[AsyncSession] = None,
         supermarket: Optional[str] = None,
         week: Optional[int] = None,
         year: Optional[int] = None,
@@ -128,8 +128,12 @@ class DiscountService:
         exists (re-run for the same week), it is replaced. Other weeks
         are left untouched.
 
+        Uses a fresh DB session for the store step to avoid connection
+        timeout during long AI cleaning (Railway closes idle connections).
+
         Args:
-            db: Database session.
+            db: Database session (for API compatibility). If None, uses
+                a fresh session for the store step.
             supermarket: Which supermarket to refresh. None = all.
             week: ISO week number. Defaults to current week.
             year: Year. Defaults to current year.
@@ -137,6 +141,8 @@ class DiscountService:
         Returns:
             dict: Summary with counts of scraped and cleaned items.
         """
+        from app.database.connection import async_session_factory
+
         # Default to current week/year if not specified
         if week is None or year is None:
             cur_week, cur_year = self.current_week_year()
@@ -179,12 +185,20 @@ class DiscountService:
             print(f"  Cleaned {len(cleaned_products)} products")
             summary["cleaned"] += len(cleaned_products)
 
-            # Step 3: STORE in database (per batch)
+            # Step 3: STORE in database (fresh session to avoid idle timeout)
             print(f"Step 3: Storing as batch '{batch_name}'...")
-            await self._store_in_db(
-                db, target, batch_name, week, year,
-                raw_products, cleaned_products,
-            )
+            if db is None:
+                async with async_session_factory() as store_session:
+                    await self._store_in_db(
+                        store_session, target, batch_name, week, year,
+                        raw_products, cleaned_products,
+                    )
+                    await store_session.commit()
+            else:
+                await self._store_in_db(
+                    db, target, batch_name, week, year,
+                    raw_products, cleaned_products,
+                )
             print(f"  Stored in database")
 
             summary["supermarkets"].append(target)

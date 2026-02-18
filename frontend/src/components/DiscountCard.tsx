@@ -4,9 +4,21 @@
  *
  * Compact card showing: product image, name, original price, deal price, discount type.
  * Links to product page when product_url is available.
+ *
+ * Discount types: BONUS, 10%, X% volume voordeel → "Online discount"
  */
 
 import type { DiscountItem } from "@/types/discount";
+
+/** Map discount_info to display type. BONUS/10%/volume voordeel → "Online discount" */
+function getDiscountType(discountInfo: string): string {
+  const upper = discountInfo.toUpperCase().trim();
+  if (!upper) return discountInfo;
+  if (upper === "BONUS" || upper.startsWith("BONUS")) return "Online discount";
+  if (/\d+%\s*VOLUME/.test(upper) || upper.includes("VOLUME VOORDEEL")) return "Online discount";
+  if (/^\d+%/.test(upper) || upper.includes("% KORTING")) return "Online discount";
+  return discountInfo;
+}
 
 interface DiscountCardProps {
   item: DiscountItem;
@@ -46,7 +58,7 @@ export default function DiscountCard({ item }: DiscountCardProps) {
         </h3>
 
         <p className="mb-2 text-xs font-medium text-green-600">
-          {item.discount_info}
+          {getDiscountType(item.discount_info)}
         </p>
 
         <div className="mt-auto flex items-center gap-2">

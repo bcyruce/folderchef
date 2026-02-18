@@ -54,6 +54,8 @@ class Settings(BaseSettings):
     # Default to SQLite for local dev (no server needed!)
     # On Railway, set this to: postgresql+asyncpg://...
     DATABASE_URL: str = "sqlite+aiosqlite:///./folderchef.db"
+    # Use public URL when running locally (railway run) - private URL only works from deployed containers
+    DATABASE_PUBLIC_URL: str = ""
 
     # --- AI / LLM ---
     OPENAI_API_KEY: str = ""
@@ -76,11 +78,15 @@ class Settings(BaseSettings):
 
 _settings = Settings()
 
+# Prefer DATABASE_PUBLIC_URL when running locally (railway run) - private URL
+# (postgres.railway.internal) only resolves from within Railway containers.
+_db_url = _settings.DATABASE_PUBLIC_URL or _settings.DATABASE_URL
+
 # Railway provides DATABASE_URL as "postgresql://..." but SQLAlchemy's
 # async engine needs "postgresql+asyncpg://...". Auto-convert it.
-if _settings.DATABASE_URL.startswith("postgresql://"):
-    _settings.DATABASE_URL = _settings.DATABASE_URL.replace(
-        "postgresql://", "postgresql+asyncpg://", 1
-    )
+if _db_url.startswith("postgresql://"):
+    _db_url = _db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
+# Expose the effective URL (config still uses DATABASE_URL for backward compat)
 settings = _settings
+settings.DATABASE_URL = _db_url
