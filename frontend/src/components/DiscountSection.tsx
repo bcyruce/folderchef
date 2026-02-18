@@ -4,8 +4,9 @@
  *
  * Weekly supermarket discounts with:
  * - Valid date range when Albert Heijn or Jumbo is selected
- * - Paginated product grid (15 per page)
- * - Product cards: image, name, original price, deal price, discount type
+ * - Discount type filter: All | Online discount | In-store deal
+ * - Products grouped by discount type under valid date
+ * - Pagination with fixed position
  */
 
 "use client";
@@ -13,6 +14,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { apiClient } from "@/lib/api";
 import type { DiscountResponse, DiscountItem } from "@/types/discount";
+import { getDiscountType, DISCOUNT_TYPE_ONLINE, DISCOUNT_TYPE_INSTORE } from "@/lib/discountTypes";
 import DiscountCard from "@/components/DiscountCard";
 
 const PRODUCTS_PER_PAGE = 15;
@@ -42,11 +44,26 @@ function getValidDateRange(items: DiscountItem[]): { from: string; to: string } 
   return null;
 }
 
+/** Group items by discount type */
+function groupByDiscountType(items: DiscountItem[]) {
+  const online: DiscountItem[] = [];
+  const instore: DiscountItem[] = [];
+  for (const item of items) {
+    if (getDiscountType(item.discount_info) === DISCOUNT_TYPE_ONLINE) {
+      online.push(item);
+    } else {
+      instore.push(item);
+    }
+  }
+  return { online, instore };
+}
+
 export default function DiscountSection() {
   const [discounts, setDiscounts] = useState<DiscountResponse[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<string>("all");
+  const [discountTypeFilter, setDiscountTypeFilter] = useState<string>("all");
   const [page, setPage] = useState<number>(1);
 
   useEffect(() => {
@@ -67,10 +84,9 @@ export default function DiscountSection() {
     fetchDiscounts();
   }, []);
 
-  // Reset to page 1 when filter changes
   useEffect(() => {
     setPage(1);
-  }, [activeFilter]);
+  }, [activeFilter, discountTypeFilter]);
 
   const filteredDiscounts =
     activeFilter === "all"
@@ -82,14 +98,27 @@ export default function DiscountSection() {
     [filteredDiscounts]
   );
 
+  const { online, instore } = useMemo(
+    () => groupByDiscountType(allItems),
+    [allItems]
+  );
+
+  const itemsByTypeFilter = useMemo(() => {
+    if (discountTypeFilter === DISCOUNT_TYPE_ONLINE) return online;
+    if (discountTypeFilter === DISCOUNT_TYPE_INSTORE) return instore;
+    return [...online, ...instore];
+  }, [discountTypeFilter, online, instore]);
+
   const dateRange = useMemo(
     () => getValidDateRange(allItems),
     [allItems]
   );
 
-  const totalPages = Math.ceil(allItems.length / PRODUCTS_PER_PAGE) || 1;
+  const totalPages = Math.ceil(itemsByTypeFilter.length / PRODUCTS_PER_PAGE) || 1;
   const startIdx = (page - 1) * PRODUCTS_PER_PAGE;
-  const paginatedItems = allItems.slice(startIdx, startIdx + PRODUCTS_PER_PAGE);
+  const paginatedItems = itemsByTypeFilter.slice(startIdx, startIdx + PRODUCTS_PER_PAGE);
+
+  const showGrouped = discountTypeFilter === "all" && (online.length > 0 && instore.length > 0);
 
   if (loading) {
     return (
@@ -116,7 +145,7 @@ export default function DiscountSection() {
 
   return (
     <div>
-      {/* Supermarket Filter Buttons */}
+      {/* Supermarket Filter */}
       <div className="mb-6 flex flex-wrap justify-center gap-3">
         {["all", "albert_heijn", "jumbo"].map((filter) => (
           <button
@@ -128,45 +157,95 @@ export default function DiscountSection() {
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}
           >
-            {filter === "all"
-              ? "All Supermarkets"
-              : filter === "albert_heijn"
-              ? "Albert Heijn"
-              : "Jumbo"}
+            {filter === "all" ? "All Supermarkets" : filter === "albert_heijn" ? "Albert Heijn" : "Jumbo"}
           </button>
         ))}
       </div>
 
-      {/* Valid date range + discount type info - shown when Albert Heijn or Jumbo is selected */}
-      {activeFilter !== "all" && dateRange && (
-        <div className="mb-4 text-center text-sm text-gray-600">
-          <p>Valid from {dateRange.from} to {dateRange.to}</p>
-          <p className="mt-1 text-xs text-gray-500">
-            Discount types: Online discount (BONUS, %, volume) · In-store deals
-          </p>
+      {/* Valid date + Discount type filter */}
+      {allItems.length > 0 && (
+        <div className="mb-4 space-y-3 text-center">
+          {activeFilter !== "all" && dateRange && (
+            <p className="text-sm text-gray-600">
+              Valid from {dateRange.from} to {dateRange.to}
+            </p>
+          )}
+          <div className="flex flex-wrap justify-center gap-2">
+            {["all", DISCOUNT_TYPE_ONLINE, DISCOUNT_TYPE_INSTORE].map((type) => (
+              <button
+                key={type}
+                onClick={() => setDiscountTypeFilter(type)}
+                className={`rounded-full px-4 py-1.5 text-xs font-medium transition ${
+                  discountTypeFilter === type
+                    ? "bg-orange-500 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {type === "all" ? "All types" : type}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Product grid + pagination */}
       {allItems.length === 0 ? (
         <p className="py-8 text-center text-gray-400">
           No discounts available yet. Check back soon!
         </p>
       ) : (
         <div className="flex flex-col">
-          {/* Grid with min-height so pagination stays fixed when changing pages */}
-          <div className="grid min-h-[680px] gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-            {paginatedItems.map((item, index) => (
-              <DiscountCard
-                key={`${item.id ?? index}-${item.raw_name}`}
-                item={item}
-              />
-            ))}
+          {/* Products area - min 3 rows height so pagination stays fixed */}
+          <div className="min-h-[920px] flex-1">
+            {showGrouped ? (
+              <div className="space-y-10">
+                {(() => {
+                  const pageOnline = paginatedItems.filter((i) => getDiscountType(i.discount_info) === DISCOUNT_TYPE_ONLINE);
+                  const pageInstore = paginatedItems.filter((i) => getDiscountType(i.discount_info) === DISCOUNT_TYPE_INSTORE);
+                  return (
+                    <>
+                      {pageOnline.length > 0 && (
+                        <section>
+                          <h3 className="mb-4 text-lg font-semibold text-gray-800">
+                            {DISCOUNT_TYPE_ONLINE}
+                          </h3>
+                          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+                            {pageOnline.map((item, index) => (
+                              <DiscountCard key={`${item.id ?? index}-${item.raw_name}`} item={item} />
+                            ))}
+                          </div>
+                        </section>
+                      )}
+                      {pageInstore.length > 0 && (
+                        <section>
+                          <h3 className="mb-4 text-lg font-semibold text-gray-800">
+                            {DISCOUNT_TYPE_INSTORE}
+                          </h3>
+                          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+                            {pageInstore.map((item, index) => (
+                              <DiscountCard key={`${item.id ?? index}-${item.raw_name}`} item={item} />
+                            ))}
+                          </div>
+                        </section>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            ) : (
+              <div className="grid min-h-[900px] gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+                {paginatedItems.map((item, index) => (
+                  <DiscountCard
+                    key={`${item.id ?? index}-${item.raw_name}`}
+                    item={item}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Pagination - fixed position at bottom of container */}
+          {/* Pagination - fixed height, won't shift */}
           {totalPages > 1 && (
-            <div className="mt-6 flex shrink-0 items-center justify-center gap-2 py-4">
+            <div className="mt-6 flex h-16 shrink-0 items-center justify-center gap-2 border-t border-gray-200 pt-6">
               <button
                 type="button"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -175,7 +254,7 @@ export default function DiscountSection() {
               >
                 Previous
               </button>
-              <span className="min-w-[120px] px-4 text-center text-sm text-gray-600">
+              <span className="min-w-[140px] text-center text-sm text-gray-600">
                 Page {page} of {totalPages}
               </span>
               <button
